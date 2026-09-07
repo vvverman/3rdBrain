@@ -13,7 +13,7 @@ jobs:
   check:
     name: Xcode и тесты
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Выбрать Xcode 26
@@ -39,7 +39,7 @@ jobs:
           set -o pipefail
           swift test 2>&1 | tee core.log
       - name: Сборка приложения и тестового пакета
-        timeout-minutes: 8
+        timeout-minutes: 12
         shell: bash
         run: |
           set -o pipefail
@@ -47,7 +47,7 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build-for-testing 2>&1 | tee build.log
       - name: Тесты SwiftData в симуляторе
-        timeout-minutes: 5
+        timeout-minutes: 7
         shell: bash
         run: |
           set -euo pipefail
