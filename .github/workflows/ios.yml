@@ -1,0 +1,54 @@
+name: Проверка iOS
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    name: Xcode и тесты
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Выбрать Xcode 26
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE=$(python3 - <<'PY'
+          import glob, re
+          paths = glob.glob('/Applications/Xcode_26*.app')
+          def version(path):
+              return tuple(map(int, re.findall(r'\d+', path)))
+          stable = [p for p in paths if 'beta' not in p.lower()]
+          if not stable:
+              raise SystemExit('Не найден стабильный Xcode 26')
+          print(sorted(stable, key=version)[-1])
+          PY
+          )
+          sudo xcode-select --switch "$XCODE/Contents/Developer"
+          xcodebuild -version
+          swift --version
+      - name: Сборка и тесты
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/check.sh 2>&1 | tee build.log
+      - name: Сохранить исходники проверяемого коммита
+        if: always()
+        run: git archive --format=zip --output=source.zip HEAD
+      - name: Журнал и результаты
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-check-${{ github.sha }}
+          path: |
+            build.log
+            TestResults.xcresult
+            source.zip
+          retention-days: 7
