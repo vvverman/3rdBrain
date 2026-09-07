@@ -13,7 +13,7 @@ jobs:
   check:
     name: Xcode и тесты
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Выбрать Xcode 26
@@ -23,22 +23,49 @@ jobs:
           XCODE=$(python3 - <<'PY'
           import glob, re
           paths = glob.glob('/Applications/Xcode_26*.app')
-          def version(path):
-              return tuple(map(int, re.findall(r'\d+', path)))
           stable = [p for p in paths if 'beta' not in p.lower()]
           if not stable:
               raise SystemExit('Не найден стабильный Xcode 26')
-          print(sorted(stable, key=version)[-1])
+          print(sorted(stable, key=lambda p: tuple(map(int, re.findall(r'\d+', p))))[-1])
           PY
           )
           sudo xcode-select --switch "$XCODE/Contents/Developer"
           xcodebuild -version
           swift --version
-      - name: Сборка и тесты
+      - name: Тесты алгоритмов
+        timeout-minutes: 3
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/check.sh 2>&1 | tee build.log
+          swift test 2>&1 | tee core.log
+      - name: Сборка приложения и тестового пакета
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project ThirdBrain.xcodeproj -scheme ThirdBrain -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build-for-testing 2>&1 | tee build.log
+      - name: Тесты SwiftData в симуляторе
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEVICE=$(xcrun simctl list devices available --json | python3 -c '
+          import json,sys
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              if "iOS-26" not in runtime: continue
+              for device in devices:
+                  if device.get("isAvailable") and device["name"].startswith("iPhone"):
+                      print(device["udid"]); sys.exit(0)
+          sys.exit("Не найден доступный симулятор iPhone с iOS 26")
+          ')
+          xcodebuild -project ThirdBrain.xcodeproj -scheme ThirdBrain -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE" -destination-timeout 60 \
+            -parallel-testing-enabled NO -test-timeouts-enabled YES \
+            -maximum-test-execution-time-allowance 60 \
+            -derivedDataPath DerivedData -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee simulator.log
       - name: Сохранить исходники проверяемого коммита
         if: always()
         run: git archive --format=zip --output=source.zip HEAD
@@ -48,7 +75,9 @@ jobs:
         with:
           name: ios-check-${{ github.sha }}
           path: |
+            core.log
             build.log
+            simulator.log
             TestResults.xcresult
             source.zip
           retention-days: 7
