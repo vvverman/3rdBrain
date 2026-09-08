@@ -5,6 +5,7 @@ import SwiftData
 @MainActor @Observable final class LocalStore {
     @ObservationIgnored let container: ModelContainer
     @ObservationIgnored let context: ModelContext
+    @ObservationIgnored private var restorePoints: [@MainActor () -> Void] = []
     private(set) var projects: [BrainProject] = []
     private(set) var notes: [BrainNote] = []
     private(set) var captures: [Capture] = []
@@ -21,7 +22,10 @@ import SwiftData
         }
         container = try ModelContainer(for: BrainProject.self, BrainNote.self, Capture.self, configurations: config)
         context = container.mainContext; context.autosaveEnabled = false
-        try reload()
+        try reload(); checkpoint()
+    }
+    private func checkpoint() {
+        restorePoints = projects.map { $0.restorePoint() } + notes.map { $0.restorePoint() } + captures.map { $0.restorePoint() }
     }
     func reload() throws {
         let projects = try context.fetch(FetchDescriptor<BrainProject>(sortBy: [SortDescriptor(\.createdAt)]))
@@ -31,8 +35,14 @@ import SwiftData
     }
     func save() throws {
         do { try context.save() }
-        catch { context.rollback(); try? reload(); throw error }
-        try reload()
+        catch {
+            context.rollback()
+            // Восстанавливаем также удерживаемые экранами модели, а не только список.
+            for restore in restorePoints { restore() }
+            try? reload()
+            throw error
+        }
+        try reload(); checkpoint()
     }
     func insert(_ capture: Capture) throws {
         guard !captures.contains(where: { $0.id == capture.id }) else { throw BrainError("Запись с таким идентификатором уже сохранена.") }
@@ -151,9 +161,14 @@ enum LocalFiles {
               UUID(uuidString: String(components[1])) != nil, components[2] == "original.caf" else {
             throw BrainError("Некорректный каталог записи. Файлы не удалены.")
         }
-        let directory = try url(path).deletingLastPathComponent()
-        let expected = try root().resolvingSymlinksInPath().appendingPathComponent("Audio").appendingPathComponent(String(components[1])).standardizedFileURL
-        guard directory.path == expected.path else { throw BrainError("Нельзя удалить каталог по символической ссылке.") }
+        // Разрешаем сам каталог, даже если original.caf не существует: разрешение
+        // полного пути отсутствующего файла может не раскрыть ссылку его родителя.
+        let directory = try root().resolvingSymlinksInPath().appendingPathComponent("Audio", isDirectory: true)
+            .appendingPathComponent(String(components[1]), isDirectory: true).standardizedFileURL
+        guard directory.resolvingSymlinksInPath().standardizedFileURL.path == directory.path,
+              (try? FileManager.default.destinationOfSymbolicLink(atPath: directory.path)) == nil else {
+            throw BrainError("Нельзя удалить каталог по символической ссылке.")
+        }
         return directory
     }
     static func deleteRecording(containing path: String) throws {

@@ -13,7 +13,7 @@ jobs:
   check:
     name: Xcode и тесты
     runs-on: macos-26
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - name: Выбрать Xcode 26
@@ -49,8 +49,8 @@ jobs:
           xcodebuild -project ThirdBrain.xcodeproj -scheme ThirdBrain -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build-for-testing 2>&1 | tee build.log
-      - name: Тесты SwiftData, аудио, обработки и интерфейса
-        timeout-minutes: 10
+      - name: Подготовить симулятор
+        timeout-minutes: 12
         shell: bash
         run: |
           set -euo pipefail
@@ -63,13 +63,21 @@ jobs:
                       print(device["udid"]); sys.exit(0)
           sys.exit("Не найден доступный симулятор iPhone с iOS 26")
           ')
+          echo "SIMULATOR_UDID=$DEVICE" >> "$GITHUB_ENV"
+          xcrun simctl bootstatus "$DEVICE" -b 2>&1 | tee boot.log
+      - name: Тесты SwiftData, аудио, обработки и интерфейса
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
           xcodebuild -project ThirdBrain.xcodeproj -scheme ThirdBrain -configuration Debug \
-            -destination "platform=iOS Simulator,id=$DEVICE" -destination-timeout 60 \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID,arch=arm64" -destination-timeout 60 \
             -parallel-testing-enabled NO -test-timeouts-enabled YES \
             -maximum-test-execution-time-allowance 90 \
             -derivedDataPath DerivedData -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee simulator.log
       - name: Release-сборка для физического iPhone без подписи
+        if: ${{ !cancelled() }}
         timeout-minutes: 8
         shell: bash
         run: |
@@ -93,6 +101,7 @@ jobs:
         with:
           name: ios-check-${{ github.sha }}
           path: |
+            boot.log
             core.log
             core-release.log
             device-release.log

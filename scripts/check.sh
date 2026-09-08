@@ -21,10 +21,11 @@ for runtime, devices in json.load(sys.stdin)["devices"].items():
             print(device["udid"]); sys.exit(0)
 sys.exit("Не найден доступный симулятор iPhone с iOS 26")
 ')
+xcrun simctl bootstatus "$DEVICE" -b
 # Уникальное имя позволяет повторить проверку без удаления предыдущих результатов.
 RESULT="TestResults-$(date +%Y%m%d-%H%M%S)-$$.xcresult"
 xcodebuild -project ThirdBrain.xcodeproj -scheme ThirdBrain -configuration Debug \
-  -destination "platform=iOS Simulator,id=$DEVICE" -destination-timeout 60 \
+  -destination "platform=iOS Simulator,id=$DEVICE,arch=$(uname -m)" -destination-timeout 60 \
   -parallel-testing-enabled NO -test-timeouts-enabled YES -maximum-test-execution-time-allowance 90 \
   -derivedDataPath DerivedData -resultBundlePath "$RESULT" \
   CODE_SIGNING_ALLOWED=NO test-without-building

@@ -9,11 +9,15 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Проверить поведение SwiftData
+      - name: Проверить восстановление в коде приложения
         shell: bash
         run: |
           set -o pipefail
-          xcrun swiftc -parse-as-library scripts/rollback_probe.swift -o /tmp/rollback-probe
+          xcodebuild -version
+          xcrun swiftc -swift-version 5 -parse-as-library \
+            ThirdBrain/Core/BrainCore.swift ThirdBrain/Models.swift \
+            ThirdBrain/LocalStore.swift ThirdBrain/RestorePoints.swift \
+            scripts/rollback_probe.swift -o /tmp/rollback-probe
           /tmp/rollback-probe 2>&1 | tee rollback-probe.log
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 @testable import ThirdBrain
 
@@ -161,7 +162,66 @@ import XCTest
         existing.title = "Несохранённое изменение"
         XCTAssertThrowsError(try store.save())
         XCTAssertEqual(existing.title, original)
-        XCTAssertFalse(store.context.hasChanges)
+        XCTAssertEqual(store.projects.first?.title, original)
+        let persisted = try ModelContext(store.container).fetch(FetchDescriptor<BrainProject>())
+        XCTAssertEqual(persisted.first?.title, original)
+        // Проверяем данные, а не внутренний dirty-флаг: восстановление само может
+        // считаться изменением контекста, но не должно протащить отказавшую правку.
+        existing.details = "Ещё одна несохранённая правка"
+        XCTAssertThrowsError(try store.save())
+        XCTAssertEqual(existing.title, original)
+        XCTAssertEqual(existing.details, "Описание")
+    }
+    func testReadOnlyAppendFailureKeepsNoteAndInbox() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("brain.store")
+        let ids: (UUID, UUID) = try autoreleasepool {
+            let store = try LocalStore(storeURL: url)
+            let project = try project(store)
+            let first = try ready(store, text: "Старое")
+            let note = try store.distribute(first, project: project, existing: nil)
+            let second = try ready(store, text: "Добавление")
+            return (note.id, second.id)
+        }
+        let store = try LocalStore(storeURL: url, allowsSave: false)
+        let note = try XCTUnwrap(store.notes.first { $0.id == ids.0 })
+        let capture = try XCTUnwrap(store.captures.first { $0.id == ids.1 })
+        XCTAssertThrowsError(try store.distribute(capture, project: store.projects[0], existing: note))
+        XCTAssertEqual(note.body, "Старое")
+        XCTAssertNil(capture.noteID); XCTAssertNil(capture.appendedAt)
+        XCTAssertEqual(store.sources(for: note).count, 1)
+        XCTAssertEqual(capture.preparedText, "Добавление")
+    }
+    func testReadOnlyNewNoteFailureKeepsInbox() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("brain.store")
+        try autoreleasepool {
+            let store = try LocalStore(storeURL: url)
+            _ = try project(store); _ = try ready(store)
+        }
+        let store = try LocalStore(storeURL: url, allowsSave: false)
+        let capture = try XCTUnwrap(store.captures.first)
+        XCTAssertThrowsError(try store.distribute(capture, project: store.projects[0], existing: nil))
+        XCTAssertNil(capture.noteID); XCTAssertTrue(store.notes.isEmpty)
+        XCTAssertEqual(store.captures.count, 1)
+    }
+    func testReadOnlyDeleteFailureKeepsNoteAndSources() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("brain.store")
+        try autoreleasepool {
+            let store = try LocalStore(storeURL: url)
+            let project = try project(store)
+            _ = try store.distribute(try ready(store, text: "Старое"), project: project, existing: nil)
+        }
+        let store = try LocalStore(storeURL: url, allowsSave: false)
+        let note = try XCTUnwrap(store.notes.first)
+        XCTAssertThrowsError(try store.deleteNote(note))
+        XCTAssertEqual(note.body, "Старое")
+        XCTAssertEqual(store.notes.count, 1)
+        XCTAssertEqual(store.sources(for: note).count, 1)
     }
     func testInvalidDeletionPathDoesNotDeleteMetadata() throws {
         let store = try LocalStore(inMemory: true)
