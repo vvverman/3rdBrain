@@ -20,12 +20,12 @@ struct ProjectPicker: View {
     @State private var ranking = false
     @State private var rankingMessage = ""
     @State private var creating = false
-    private var canChoose: Bool { !capture.phase.isWorking && !capture.textToSave.isEmpty }
+    private var canChoose: Bool { capture.phase.allowsEditing && !capture.textToSave.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var projects: [BrainProject] { app.store.orderedProjects(scores: scores) }
-    private var rankingKey: String {
-        capture.phaseRaw + capture.textToSave + app.store.projects.map {
-            $0.id.uuidString + $0.title + $0.details + $0.instruction + String($0.pinned)
-        }.joined()
+    private var rankingKey: [String] {
+        [capture.phaseRaw, capture.textToSave, capture.localeID] + app.store.projects.flatMap {
+            [$0.id.uuidString, $0.title, $0.details, $0.instruction, String($0.pinned)]
+        }
     }
     var body: some View {
         List {
@@ -63,7 +63,7 @@ struct ProjectPicker: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $creating) { ProjectEditor(app: app) }
         .task(id: rankingKey) {
-            scores = [:]; rankingMessage = ""
+            scores = [:]; rankingMessage = ""; ranking = false
             guard canChoose, !app.store.projects.isEmpty else { return }
             ranking = true
             do {
@@ -115,7 +115,7 @@ struct NoteDestinationPicker: View {
                 Text("Прежний текст не изменится. У нового фрагмента останется собственный транскрипт и аудиоисточник.")
             }
         }
-        .disabled(saving || capture.noteID != nil)
+        .disabled(saving || capture.noteID != nil || !capture.phase.allowsEditing)
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
     }

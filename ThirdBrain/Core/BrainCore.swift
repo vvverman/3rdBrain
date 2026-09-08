@@ -21,7 +21,8 @@ public struct AudioSpan: Codable, Equatable, Sendable {
 public enum AudioTimeline {
     // В удалённой паузе переходим к ближайшей сохранённой границе.
     public static func compactTime(for originalTime: Double, spans: [AudioSpan]) -> Double {
-        guard let last = spans.last else { return max(0, originalTime) }
+        let originalTime = originalTime.isFinite ? max(0, originalTime) : 0
+        guard let last = spans.last else { return originalTime }
         for span in spans {
             if originalTime < span.originalStart { return span.compactStart }
             if originalTime <= span.originalStart + span.duration {
@@ -31,7 +32,8 @@ public enum AudioTimeline {
         return last.compactStart + last.duration
     }
     public static func originalTime(for compactTime: Double, spans: [AudioSpan]) -> Double {
-        guard let last = spans.last else { return max(0, compactTime) }
+        let compactTime = compactTime.isFinite ? max(0, compactTime) : 0
+        guard let last = spans.last else { return compactTime }
         for span in spans where compactTime < span.compactStart + span.duration {
             return span.originalStart + max(0, compactTime - span.compactStart)
         }
@@ -45,9 +47,10 @@ public enum SilencePlanner {
     public static func spans(levels: [Double], frameDuration: Double, duration: Double,
                              threshold: Double = -48, padding: Double = 0.25,
                              minimumGap: Double = 0.9) -> [AudioSpan] {
-        guard duration > 0 else { return [] }
+        guard duration.isFinite, duration > 0 else { return [] }
         let full = [AudioSpan(originalStart: 0, duration: duration, compactStart: 0)]
-        guard frameDuration > 0, !levels.isEmpty else { return full }
+        guard frameDuration.isFinite, frameDuration > 0, padding.isFinite, padding >= 0,
+              minimumGap.isFinite, minimumGap >= 0, threshold.isFinite, !levels.isEmpty else { return full }
         var ranges: [(Double, Double)] = []
         for (index, level) in levels.enumerated() where level.isFinite && level > threshold {
             let start = max(0, Double(index) * frameDuration - padding)
@@ -126,7 +129,19 @@ public enum NoteText {
         return existing.isEmpty ? addition : existing + "\n\n" + addition
     }
     public static func title(from text: String) -> String {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let line = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? "Новая заметка"
         return String(line.prefix(70))
+    }
+}
+
+public enum AudioClock {
+    public static func format(_ value: Double) -> String {
+        guard value.isFinite, value >= 0, value < Double(Int.max) else { return "00:00" }
+        let seconds = Int(value)
+        // Интерполяция не обрезает 64-битный Int до 32-битного формата C.
+        func two(_ value: Int) -> String { value < 10 ? "0\(value)" : String(value) }
+        return seconds >= 3600 ? "\(seconds / 3600):\(two((seconds / 60) % 60)):\(two(seconds % 60))"
+            : "\(two(seconds / 60)):\(two(seconds % 60))"
     }
 }

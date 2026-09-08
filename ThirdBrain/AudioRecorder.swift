@@ -47,27 +47,32 @@ import Observation
     }
     func start(at url: URL) throws {
         guard recorder == nil else { return }
-        try activateSession()
-        // CAF/PCM позволяет восстанавливать источник после незапланированного прерывания.
-        let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: 16000.0, AVNumberOfChannelsKey: 1,
-            AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsBigEndianKey: false]
-        let newRecorder = try AVAudioRecorder(url: url, settings: settings)
-        newRecorder.delegate = self; newRecorder.isMeteringEnabled = true
-        guard newRecorder.prepareToRecord(), newRecorder.record() else { throw BrainError("Не удалось включить микрофон. Проверьте свободное место и доступ к записи.") }
-        recorder = newRecorder; isRecording = true; isPaused = false
-        elapsed = 0; level = 0; lastCheckpoint = -1; interruptionMessage = ""
-        meterTask = Task { [weak self] in
-            while !Task.isCancelled {
-                self?.tick()
-                do { try await Task.sleep(for: .milliseconds(200)) } catch { break }
+        do {
+            try activateSession()
+            // CAF/PCM позволяет восстанавливать источник после незапланированного прерывания.
+            let settings: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM,
+                AVSampleRateKey: 16000.0, AVNumberOfChannelsKey: 1,
+                AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false]
+            let newRecorder = try AVAudioRecorder(url: url, settings: settings)
+            newRecorder.delegate = self; newRecorder.isMeteringEnabled = true
+            guard newRecorder.prepareToRecord(), newRecorder.record() else { throw BrainError("Не удалось включить микрофон. Проверьте свободное место и доступ к записи.") }
+            recorder = newRecorder; isRecording = true; isPaused = false
+            elapsed = 0; level = 0; lastCheckpoint = -1; interruptionMessage = ""
+            meterTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    self?.tick()
+                    do { try await Task.sleep(for: .milliseconds(200)) } catch { break }
+                }
             }
+        } catch {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            throw error
         }
     }
     func pause() {
         guard let recorder, isRecording else { return }
-        elapsed = recorder.currentTime; recorder.pause()
+        elapsed = max(elapsed, recorder.currentTime); recorder.pause()
         isRecording = false; isPaused = true; level = 0
         onCheckpoint?(elapsed, true)
     }
@@ -80,9 +85,9 @@ import Observation
     }
     @discardableResult func finish() -> Double {
         let active = recorder
-        elapsed = active?.currentTime ?? elapsed
-        recorder = nil; active?.stop(); meterTask?.cancel(); meterTask = nil
-        isRecording = false; isPaused = false; level = 0
+        elapsed = max(elapsed, active?.currentTime ?? 0)
+        recorder = nil; active?.delegate = nil; active?.stop(); meterTask?.cancel(); meterTask = nil
+        isRecording = false; isPaused = false; level = 0; interruptionMessage = ""
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         return elapsed
     }
@@ -93,20 +98,25 @@ import Observation
     private func tick() {
         guard let recorder else { return }
         if isRecording {
-            elapsed = recorder.currentTime; recorder.updateMeters()
+            elapsed = max(elapsed, recorder.currentTime); recorder.updateMeters()
             level = min(1, max(0, (Double(recorder.averagePower(forChannel: 0)) + 55) / 55))
             let checkpoint = Int(elapsed) / 5
             if checkpoint != lastCheckpoint { lastCheckpoint = checkpoint; onCheckpoint?(elapsed, false) }
         }
     }
     nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+        let identity = ObjectIdentifier(recorder)
         Task { @MainActor [weak self] in
-            guard let self, self.hasSession else { return }
+            guard let self, let current = self.recorder, ObjectIdentifier(current) == identity else { return }
             self.onUnexpectedStop?(flag ? "Запись остановлена системой." : "Запись прервана. Проверьте аудиоисточник.")
         }
     }
     nonisolated func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: (any Error)?) {
         let message = error?.localizedDescription ?? "Ошибка записи аудио."
-        Task { @MainActor [weak self] in self?.onUnexpectedStop?(message) }
+        let identity = ObjectIdentifier(recorder)
+        Task { @MainActor [weak self] in
+            guard let self, let current = self.recorder, ObjectIdentifier(current) == identity else { return }
+            self.onUnexpectedStop?(message)
+        }
     }
 }

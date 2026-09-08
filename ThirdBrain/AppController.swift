@@ -19,15 +19,25 @@ import SwiftUI
     var speechStatus = "Проверка…"
     var modelStatus = "Проверка…"
     @ObservationIgnored var worker: Task<Void, Never>?
-    @ObservationIgnored var queue: [(UUID, Bool)] = []
+    @ObservationIgnored var queue: [(UUID, Bool, String)] = []
     @ObservationIgnored var didLaunch = false
     @ObservationIgnored var wasBackground = false
     var activeCapture: Capture? { store.captures.first { $0.id == activeCaptureID } }
     var inbox: [Capture] { store.captures.filter { $0.noteID == nil && $0.id != activeCaptureID } }
-    var testing: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
+    static var uiTesting: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        #else
+        false
+        #endif
+    }
+    var testing: Bool { Self.uiTesting || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
 
-    init() throws {
-        store = try LocalStore()
+    init(store: LocalStore? = nil) throws {
+        self.store = try store ?? LocalStore(inMemory: Self.uiTesting || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil)
+        #if DEBUG
+        if Self.uiTesting { try seedInterfaceTests() }
+        #endif
         recorder.onCheckpoint = { [weak self] time, paused in
             guard let self, let capture = self.activeCapture else { return }
             capture.duration = time; capture.phase = paused ? .paused : .recording
@@ -79,6 +89,7 @@ import SwiftUI
             errorMessage = "Разрешите микрофон в системных настройках 3rdBrain. Просмотр заметок доступен и без микрофона."
             return
         }
+        guard !Task.isCancelled, UIApplication.shared.applicationState == .active else { return }
         player.stop()
         do {
             let id = UUID(); let path = try LocalFiles.createRecording(id: id)
@@ -99,7 +110,7 @@ import SwiftUI
         capture.phase = .queued; capture.message = warning
         guard attempt({ try store.save() }) else { return }
         routingCapture = capture
-        enqueue(capture)
+        enqueue(capture, warning: warning)
     }
     func play(_ capture: Capture, compact: Bool, originalTime: Double = 0) {
         recorder.pause()
@@ -108,6 +119,7 @@ import SwiftUI
         attempt { try player.play(path: path, from: time) }
     }
     func refreshCapabilities() async {
+        guard !testing else { return }
         speechStatus = await speech.diagnostic(localeID: "ru-RU")
         modelStatus = await intelligence.unavailableReason(localeID: "ru-RU") ?? "Локальная LLM доступна для русского языка."
     }

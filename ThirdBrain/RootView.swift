@@ -86,8 +86,4 @@ struct OnboardingView: View {
     }
 }
 
-func clock(_ value: Double) -> String {
-    let seconds = value.isFinite ? max(0, Int(value)) : 0
-    return seconds >= 3600 ? String(format: "%d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60)
-        : String(format: "%02d:%02d", seconds / 60, seconds % 60)
-}
+func clock(_ value: Double) -> String { AudioClock.format(value) }

@@ -95,8 +95,7 @@ struct ProjectNotesView: View {
         .sheet(isPresented: $creatingNote) {
             TextEditorSheet(app: app, title: "Новая заметка", text: "") { title, body in
                 app.attempt {
-                    app.store.context.insert(BrainNote(projectID: project.id, title: title, body: body))
-                    try app.store.save()
+                    try app.store.addNote(project: project, title: title, body: body)
                 }
             }
         }

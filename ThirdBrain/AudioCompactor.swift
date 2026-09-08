@@ -5,10 +5,14 @@ struct CompactAudio: Sendable { let spans: [AudioSpan]; let duration: Double }
 
 actor AudioCompactor {
     func compact(source: URL, destination: URL) async throws -> CompactAudio {
+        try Task.checkCancellation()
+        guard source.resolvingSymlinksInPath().standardizedFileURL != destination.resolvingSymlinksInPath().standardizedFileURL else {
+            throw BrainError("Компактная версия не может заменять оригинал.")
+        }
         let file = try AVAudioFile(forReading: source, commonFormat: .pcmFormatFloat32, interleaved: false)
         let rate = file.processingFormat.sampleRate
         let duration = Double(file.length) / rate
-        guard duration > 0 else { throw BrainError("В аудиофайле нет записанного звука.") }
+        guard rate.isFinite, rate > 0, duration.isFinite, duration > 0 else { throw BrainError("В аудиофайле нет записанного звука.") }
         let frames = AVAudioFrameCount(max(1, Int(rate * 0.1)))
         guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames) else {
             throw BrainError("Не удалось выделить буфер аудио.")
@@ -17,7 +21,9 @@ actor AudioCompactor {
         while file.framePosition < file.length {
             try Task.checkCancellation()
             try file.read(into: buffer, frameCount: frames)
-            guard buffer.frameLength > 0, let channels = buffer.floatChannelData else { break }
+            guard buffer.frameLength > 0, let channels = buffer.floatChannelData else {
+                throw BrainError("Аудио прочитано не полностью. Оригинал сохранён без изменений.")
+            }
             let count = Int(buffer.frameLength)
             var maximum = 0.0
             for channel in 0..<Int(buffer.format.channelCount) {
@@ -46,8 +52,12 @@ actor AudioCompactor {
         let temporary = destination.deletingLastPathComponent().appendingPathComponent("compact-\(UUID().uuidString).m4a")
         do {
             try await export.export(to: temporary, as: .m4a)
-            if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
-            try FileManager.default.moveItem(at: temporary, to: destination)
+            try Task.checkCancellation()
+            if FileManager.default.fileExists(atPath: destination.path) {
+                _ = try FileManager.default.replaceItemAt(destination, withItemAt: temporary)
+            } else {
+                try FileManager.default.moveItem(at: temporary, to: destination)
+            }
         } catch { try? FileManager.default.removeItem(at: temporary); throw error }
         return CompactAudio(spans: spans, duration: spans.reduce(0) { $0 + $1.duration })
     }

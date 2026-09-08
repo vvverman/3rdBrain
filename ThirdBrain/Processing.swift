@@ -1,23 +1,23 @@
 import Foundation
 
 extension AppController {
-    func enqueue(_ capture: Capture, allowDownload: Bool = false) {
-        guard capture.id != activeCaptureID, capture.noteID == nil,
+    func enqueue(_ capture: Capture, allowDownload: Bool = false, warning: String = "") {
+        guard store.captures.contains(where: { $0 === capture }), capture.id != activeCaptureID, capture.noteID == nil,
               processingID != capture.id, !queue.contains(where: { $0.0 == capture.id }) else { return }
         capture.phase = .queued
         guard attempt({ try store.save() }) else { return }
-        queue.append((capture.id, allowDownload))
+        queue.append((capture.id, allowDownload, warning))
         guard worker == nil else { return }
         worker = Task { [weak self] in
             guard let self else { return }
             while !self.queue.isEmpty && !Task.isCancelled {
-                let (id, download) = self.queue.removeFirst()
+                let (id, download, warning) = self.queue.removeFirst()
                 guard let record = self.store.captures.first(where: { $0.id == id }) else { continue }
                 self.processingID = id
-                await self.process(record, allowDownload: download)
+                await self.process(record, allowDownload: download, warning: warning)
             }
             if Task.isCancelled {
-                for (id, _) in self.queue {
+                for (id, _, _) in self.queue {
                     if let record = self.store.captures.first(where: { $0.id == id }) {
                         record.phase = .failed; record.message = "Обработка отложена. Источник сохранён; повторите при открытом приложении."
                     }
@@ -27,8 +27,8 @@ extension AppController {
             self.processingID = nil; self.worker = nil
         }
     }
-    private func process(_ capture: Capture, allowDownload: Bool) async {
-        var warnings: [String] = []
+    private func process(_ capture: Capture, allowDownload: Bool, warning: String) async {
+        var warnings: [String] = warning.isEmpty ? [] : [warning]
         capture.message = ""
         do {
             try Task.checkCancellation()
@@ -63,10 +63,12 @@ extension AppController {
                 capture.phase = .polishing; try store.save()
                 do {
                     let result = try await intelligence.clean(capture.transcript, localeID: capture.localeID)
+                    try Task.checkCancellation()
                     capture.preparedText = result.body; capture.title = result.title; capture.llmApplied = true
                 } catch is CancellationError { throw CancellationError() }
                 catch { warnings.append(error.localizedDescription) }
             }
+            try Task.checkCancellation()
             capture.phase = .ready; capture.message = warnings.joined(separator: "\n\n")
             try store.save()
         } catch {
