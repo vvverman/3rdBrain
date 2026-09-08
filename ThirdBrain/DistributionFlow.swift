@@ -64,7 +64,7 @@ struct ProjectPicker: View {
         .sheet(isPresented: $creating) { ProjectEditor(app: app) }
         .task(id: rankingKey) {
             scores = [:]; rankingMessage = ""; ranking = false
-            guard canChoose, !app.store.projects.isEmpty else { return }
+            guard canChoose, app.store.projects.contains(where: { !$0.pinned }), !app.testing else { return }
             ranking = true
             do {
                 let result = try await app.intelligence.rank(text: capture.textToSave, projects: app.store.projects.map(\.candidate), localeID: capture.localeID)

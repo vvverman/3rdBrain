@@ -153,7 +153,7 @@ enum LocalFiles {
         }
         let directory = try url(path).deletingLastPathComponent()
         let expected = try root().resolvingSymlinksInPath().appendingPathComponent("Audio").appendingPathComponent(String(components[1])).standardizedFileURL
-        guard directory == expected else { throw BrainError("Нельзя удалить каталог по символической ссылке.") }
+        guard directory.path == expected.path else { throw BrainError("Нельзя удалить каталог по символической ссылке.") }
         return directory
     }
     static func deleteRecording(containing path: String) throws {
