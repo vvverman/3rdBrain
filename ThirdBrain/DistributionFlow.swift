@@ -41,7 +41,7 @@ struct ProjectPicker: View {
                 if !capture.message.isEmpty { Text(capture.message).font(.footnote).foregroundStyle(.secondary) }
                 if capture.phase == .failed {
                     Button("Повторить обработку") { app.enqueue(capture) }
-                    Button("Загрузить системную модель и повторить") { app.enqueue(capture, allowDownload: true) }
+                    SpeechModelDownloadButton { app.enqueue(capture, allowDownload: true) }
                 }
             }
             if canChoose {

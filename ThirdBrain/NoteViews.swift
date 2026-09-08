@@ -50,7 +50,7 @@ struct CaptureView: View {
                 if !capture.message.isEmpty { Label(capture.message, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary) }
                 if !capture.phase.isWorking && capture.noteID == nil {
                     Button("Повторить незавершённые этапы", systemImage: "arrow.clockwise") { app.enqueue(capture) }
-                    Button("Загрузить модель и повторить", systemImage: "arrow.down.circle") { app.enqueue(capture, allowDownload: true) }
+                    SpeechModelDownloadButton { app.enqueue(capture, allowDownload: true) }
                 }
             }
             Section(capture.draftEdited ? "Ваш текст" : capture.llmApplied ? "Оформленная заметка" : "Текст без обработки LLM") {

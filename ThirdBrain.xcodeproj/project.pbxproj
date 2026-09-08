@@ -4,14 +4,14 @@
  classes = {};
  objectVersion = 77;
  objects = {
-  A00000000000000000000001 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2600; TargetAttributes = {A00000000000000000000002 = {CreatedOnToolsVersion = 26.0;}; A00000000000000000000020 = {CreatedOnToolsVersion = 26.0; TestTargetID = A00000000000000000000002;};};}; buildConfigurationList = A00000000000000000000010; compatibilityVersion = "Xcode 16.0"; developmentRegion = ru; hasScannedForEncodings = 0; knownRegions = (ru, en, Base); mainGroup = A00000000000000000000003; preferredProjectObjectVersion = 77; productRefGroup = A00000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000002, A00000000000000000000020);};
-  A00000000000000000000002 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000011; buildPhases = (A00000000000000000000007, A00000000000000000000008, A00000000000000000000009); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (A00000000000000000000005); name = ThirdBrain; packageProductDependencies = (); productName = ThirdBrain; productReference = A00000000000000000000006; productType = "com.apple.product-type.application";};
+  A00000000000000000000001 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2600; TargetAttributes = {A00000000000000000000002 = {CreatedOnToolsVersion = 26.0;}; A00000000000000000000020 = {CreatedOnToolsVersion = 26.0; TestTargetID = A00000000000000000000002;};};}; buildConfigurationList = A00000000000000000000010; compatibilityVersion = "Xcode 16.0"; developmentRegion = ru; hasScannedForEncodings = 0; knownRegions = (ru, en, Base); mainGroup = A00000000000000000000003; preferredProjectObjectVersion = 77; productRefGroup = A00000000000000000000004; projectDirPath = ""; projectRoot = ""; packageReferences = (A00000000000000000000030); targets = (A00000000000000000000002, A00000000000000000000020);};
+  A00000000000000000000002 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000011; buildPhases = (A00000000000000000000007, A00000000000000000000008, A00000000000000000000009); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (A00000000000000000000005); name = ThirdBrain; packageProductDependencies = (A00000000000000000000031); productName = ThirdBrain; productReference = A00000000000000000000006; productType = "com.apple.product-type.application";};
   A00000000000000000000003 = {isa = PBXGroup; children = (A00000000000000000000005, A00000000000000000000021, A00000000000000000000004); sourceTree = "<group>";};
   A00000000000000000000004 = {isa = PBXGroup; children = (A00000000000000000000006, A00000000000000000000022); name = Products; sourceTree = "<group>";};
   A00000000000000000000005 = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A0000000000000000000000A); path = ThirdBrain; sourceTree = "<group>";};
   A00000000000000000000006 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ThirdBrain.app; sourceTree = BUILT_PRODUCTS_DIR;};
   A00000000000000000000007 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
-  A00000000000000000000008 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+  A00000000000000000000008 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000032); runOnlyForDeploymentPostprocessing = 0;};
   A00000000000000000000009 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
   A0000000000000000000000A = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist); target = A00000000000000000000002;};
   A00000000000000000000010 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000012, A00000000000000000000013); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
@@ -31,6 +31,9 @@
   A00000000000000000000029 = {isa = XCConfigurationList; buildConfigurations = (A0000000000000000000002A, A0000000000000000000002B); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
   A0000000000000000000002A = {isa = XCBuildConfiguration; name = Debug; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = ru.vvverman.ThirdBrainTests; PRODUCT_NAME = "$(TARGET_NAME)"; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ThirdBrain.app/ThirdBrain";};};
   A0000000000000000000002B = {isa = XCBuildConfiguration; name = Release; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = ru.vvverman.ThirdBrainTests; PRODUCT_NAME = "$(TARGET_NAME)"; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ThirdBrain.app/ThirdBrain";};};
+  A00000000000000000000030 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/argmaxinc/argmax-oss-swift.git"; requirement = {kind = exactVersion; version = 1.1.0;};};
+  A00000000000000000000031 = {isa = XCSwiftPackageProductDependency; package = A00000000000000000000030; productName = WhisperKit;};
+  A00000000000000000000032 = {isa = PBXBuildFile; productRef = A00000000000000000000031;};
  };
  rootObject = A00000000000000000000001;
 }
