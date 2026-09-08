@@ -31,6 +31,17 @@ fun BrainApp(state: BrainAppState) {
     Box(Modifier.fillMaxSize().background(Color(0xFF101310)), contentAlignment = Alignment.Center) {
         Surface(Modifier.widthIn(max = 430.dp).fillMaxWidth().fillMaxHeight()) {
             Scaffold(
+                topBar = {
+                    state.error?.let { message ->
+                        Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                            Column(Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(rememberScrollState()).padding(16.dp)) {
+                                Text("Не удалось выполнить действие", fontWeight = FontWeight.SemiBold)
+                                Text(message, style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = state::clearError) { Text("Понятно") }
+                            }
+                        }
+                    }
+                },
                 bottomBar = {
                     Column {
                         RecorderBar(state) { task -> scope.launch { task() } }
@@ -43,6 +54,7 @@ fun BrainApp(state: BrainAppState) {
                 },
             ) { padding ->
                 when {
+                    state.onboarding -> Onboarding(state, Modifier.padding(padding))
                     state.creatingProject || state.editingProject != null -> ProjectEditorScreen(state, state.editingProject, Modifier.padding(padding))
                     state.route != null -> RoutingScreen(state, state.route!!, Modifier.padding(padding))
                     else -> when (state.tab) {
@@ -55,15 +67,6 @@ fun BrainApp(state: BrainAppState) {
         }
     }
 
-    if (state.onboarding) Onboarding(state)
-    state.error?.let { message ->
-        AlertDialog(
-            onDismissRequest = state::clearError,
-            confirmButton = { TextButton(onClick = state::clearError) { Text("Понятно") } },
-            title = { Text("Не удалось выполнить действие") },
-            text = { Text(message) },
-        )
-    }
 }
 
 @Composable
@@ -180,15 +183,19 @@ private fun RecorderBar(state: BrainAppState, onAction: (suspend () -> Unit) -> 
 }
 
 @Composable
-private fun Onboarding(state: BrainAppState) {
+private fun Onboarding(state: BrainAppState, modifier: Modifier) {
     val scope = rememberCoroutineScope()
-    AlertDialog(
-        onDismissRequest = {},
-        confirmButton = { Button(onClick = { scope.launch { state.consentAndStart() } }) { Text("Разрешить микрофон и начать") } },
-        title = { Text("Откройте. Скажите. Сохраните.") },
-        dismissButton = { TextButton(onClick = state::browseOnly) { Text("Пока без записи") } },
-        text = { Text("После разрешения микрофона 3rdBrain начинает запись при открытии. Запись всегда видна на нижней панели.") },
-    )
+    // Один Compose-сценарий без отдельного popup: семантика кнопок обновляется вместе с UI.
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Spacer(Modifier.height(24.dp))
+        Text("Откройте. Скажите. Сохраните.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
+        Text("После разрешения микрофона 3rdBrain начинает запись при открытии. Запись всегда видна на нижней панели.")
+        Text("Можно просматривать заметки во время записи. Аудио и текст остаются на этом компьютере.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Button(enabled = !state.recordingBusy, modifier = Modifier.fillMaxWidth(), onClick = { scope.launch { state.consentAndStart() } }) {
+            Text("Разрешить микрофон и начать")
+        }
+        TextButton(onClick = state::browseOnly, modifier = Modifier.fillMaxWidth()) { Text("Пока без записи") }
+    }
 }
 
 private fun formatTime(seconds: Long): String = "${(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}"
