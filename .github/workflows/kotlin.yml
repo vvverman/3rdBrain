@@ -1,25 +1,53 @@
 name: Kotlin Multiplatform
-
 on:
   push:
     branches: [kmp-web-rewrite, main]
   pull_request:
-
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: kotlin-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Исходники проверяемого коммита
+        run: git archive --format=zip --output=source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-source-${{ github.sha }}
+          path: source.zip
+          retention-days: 7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14.5'
-      - name: Shared tests
-        run: gradle :shared:jvmTest
-      - name: Runtime tests
-        run: gradle :runtime:test
-      - name: Web build
-        run: gradle :composeApp:wasmJsBrowserDistribution
+          cache-read-only: false
+      - name: Сборка и тесты Kotlin
+        run: |
+          set -o pipefail
+          gradle --continue :shared:jvmTest :runtime:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
+      - name: Gradle Wrapper
+        if: always()
+        run: |
+          gradle wrapper --gradle-version 8.14.5 --distribution-type bin
+          zip -r wrapper.zip gradlew gradlew.bat gradle/wrapper
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kotlin-check-${{ github.sha }}
+          path: |
+            kotlin.log
+            wrapper.zip
+            shared/build/test-results
+            runtime/build/test-results
+            composeApp/build/dist/wasmJs/productionExecutable
+            runtime/build/install
+          retention-days: 7
