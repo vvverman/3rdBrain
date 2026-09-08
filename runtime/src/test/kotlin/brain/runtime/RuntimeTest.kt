@@ -58,7 +58,7 @@ class RuntimeTest {
             assertEquals(HttpStatusCode.OK, client.post("/api/projects") { header("X-3rdBrain-Client", "web"); contentType(ContentType.Application.Json); setBody("""{"title":"X"}""") }.status)
         } finally { root.toFile().deleteRecursively() }
     }
-    @Test fun subprocessTimeoutAndCancellationWork() = runBlocking {
+    @Test fun subprocessTimeoutAndCancellationWork() = runBlocking<Unit> {
         val runner = JvmCommandRunner()
         assertEquals("hello", runner.run(listOf("/bin/echo", "hello"), 3).trim())
         assertFails { runner.run(listOf("/bin/sleep", "10"), 0) }

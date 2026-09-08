@@ -1,16 +1,21 @@
+# Локальная сборка и настройки
+.gradle/
+.kotlin/
+**/build/
+node_modules/
+.idea/
+*.iml
 .DS_Store
-.build/
-.swiftpm/
-DerivedData/
-*.xcuserstate
-xcuserdata/
-*.xcresult
-build.log
-DerivedDataDevice/
-Screenshots/
-core.log
-core-release.log
-simulator.log
-device-release.log
-source.zip
-boot.log
+.env
+.env.*
+!.env.example
+# Не коммитить записи, веса и результаты тестов
+*.gguf
+*.bin
+*.wav
+*.webm
+*.m4a
+*.caf
+*.zip
+test-output/
+__pycache__/
