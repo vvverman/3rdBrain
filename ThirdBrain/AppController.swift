@@ -7,7 +7,7 @@ import SwiftUI
     let store: LocalStore
     let recorder = AudioRecorder()
     let player = SourcePlayer()
-    let speech = SpeechService()
+    let speech = AppleSpeechService()
     let intelligence = LocalIntelligence()
     let compactor = AudioCompactor()
     var activeCaptureID: UUID?
