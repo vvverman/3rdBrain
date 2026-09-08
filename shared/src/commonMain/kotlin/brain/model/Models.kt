@@ -28,10 +28,12 @@ enum class CaptureStatus {
     RECORDING,
     QUEUED,
     TRANSCRIBING,
+    COMPACTING,
     POLISHING,
     READY,
     NEEDS_MODEL,
-    FAILED,
+    FAILED;
+    val isWorking: Boolean get() = this in setOf(RECORDING, QUEUED, TRANSCRIBING, COMPACTING, POLISHING)
 }
 
 @Serializable
@@ -47,8 +49,16 @@ data class Capture(
     val noteId: String? = null,
     val appendedAt: Long? = null,
     val relevance: Map<String, Int> = emptyMap(),
+    val draftEdited: Boolean = false,
+    val llmApplied: Boolean = false,
+    val rankingApplied: Boolean = false,
+    val durationSeconds: Double = 0.0,
+    val compactAudioFileName: String? = null,
+    val compactDurationSeconds: Double = 0.0,
+    val pieces: List<TranscriptPiece> = emptyList(),
+    val spans: List<AudioSpan> = emptyList(),
 ) {
-    val textToSave: String get() = preparedText.ifBlank { transcript }
+    val textToSave: String get() = if (draftEdited) preparedText else preparedText.ifBlank { transcript }
     val isInbox: Boolean get() = noteId == null
 }
 
@@ -75,3 +85,7 @@ data class AppSnapshot(
 @Serializable data class CaptureDraftUpdate(val title: String, val text: String)
 @Serializable data class NoteUpdate(val title: String, val body: String)
 @Serializable data class DistributionRequest(val projectId: String, val noteId: String? = null, val title: String? = null)
+
+@Serializable data class TranscriptPiece(val start: Double, val end: Double, val text: String)
+@Serializable data class AudioSpan(val originalStart: Double, val duration: Double, val compactStart: Double)
+@Serializable data class ApiError(val error: String)

@@ -21,7 +21,7 @@ object NoteText {
     fun append(existing: String, addition: String): String {
         val clean = addition.trim()
         if (clean.isEmpty()) return existing
-        return if (existing.isBlank()) clean else existing.trimEnd() + "\n\n" + clean
+        return if (existing.isEmpty()) addition else existing + "\n\n" + addition
     }
 
     fun title(text: String): String = text

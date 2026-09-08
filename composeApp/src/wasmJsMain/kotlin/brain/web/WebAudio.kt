@@ -1,33 +1,17 @@
 @file:OptIn(ExperimentalWasmJsInterop::class)
-
 package brain.web
 
-import brain.ui.AudioGateway
-import kotlin.js.JsString
-import kotlin.js.toJsString
+import brain.domain.AudioGateway
+import kotlinx.coroutines.await
+import kotlin.js.*
 
 class WebAudioGateway(private val baseUrl: String) : AudioGateway {
-    override suspend fun playCapture(captureId: String) {
-        val result = jsPlayAudio(("$baseUrl/api/captures/$captureId/audio").toJsString()).toString()
+    override suspend fun playCapture(captureId: String, compact: Boolean, fromSeconds: Double, rate: Double) {
+        val url = "$baseUrl/api/captures/$captureId/audio?compact=$compact"
+        val result = play(url.toJsString(), fromSeconds, rate).await().toString()
         if (result.startsWith("ERROR:")) error(result.removePrefix("ERROR:"))
     }
-    override fun stop() { jsStopAudio() }
+    override fun stop() { stopAudio() }
 }
-
-private fun jsPlayAudio(url: JsString): JsString = js("""
-(() => {
-    try {
-        if (globalThis.__thirdBrainAudio) globalThis.__thirdBrainAudio.pause();
-        const player = new Audio(url);
-        globalThis.__thirdBrainAudio = player;
-        player.play();
-        return 'ok';
-    } catch (e) { return 'ERROR:' + (e && e.message ? e.message : String(e)); }
-})()
-""")
-private fun jsStopAudio(): Unit = js("""{
-    if (globalThis.__thirdBrainAudio) {
-        globalThis.__thirdBrainAudio.pause();
-        globalThis.__thirdBrainAudio = null;
-    }
-}""")
+private fun play(url: JsString, from: Double, rate: Double): Promise<JsString> = js("globalThis.thirdBrainPlatform.play(url, from, rate)")
+private fun stopAudio(): Unit = js("globalThis.thirdBrainPlatform.stopAudio()")

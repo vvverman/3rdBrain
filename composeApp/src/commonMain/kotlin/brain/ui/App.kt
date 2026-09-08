@@ -2,6 +2,8 @@ package brain.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,10 +26,10 @@ fun BrainApp(state: BrainAppState) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { state.launch() }
     LaunchedEffect(Unit) { state.pollProcessing() }
-    LaunchedEffect(state.isRecording) { if (state.isRecording) state.tickRecordingClock() }
+    LaunchedEffect(state.isRecording || state.isPaused) { if (state.isRecording || state.isPaused) state.tickRecordingClock() }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF101310)), contentAlignment = Alignment.Center) {
-        Surface(Modifier.fillMaxHeight().fillMaxWidth().widthIn(max = 430.dp)) {
+        Surface(Modifier.widthIn(max = 430.dp).fillMaxWidth().fillMaxHeight()) {
             Scaffold(
                 bottomBar = {
                     Column {
@@ -40,10 +42,14 @@ fun BrainApp(state: BrainAppState) {
                     }
                 },
             ) { padding ->
-                when (state.tab) {
+                when {
+                    state.creatingProject || state.editingProject != null -> ProjectEditorScreen(state, state.editingProject, Modifier.padding(padding))
+                    state.route != null -> RoutingScreen(state, state.route!!, Modifier.padding(padding))
+                    else -> when (state.tab) {
                     MainTab.INBOX -> InboxScreen(state, Modifier.padding(padding))
                     MainTab.PROJECTS -> ProjectsScreen(state, Modifier.padding(padding))
                     MainTab.SETTINGS -> SettingsScreen(state, Modifier.padding(padding))
+                    }
                 }
             }
         }
@@ -58,9 +64,6 @@ fun BrainApp(state: BrainAppState) {
             text = { Text(message) },
         )
     }
-    state.route?.let { RoutingDialog(state, it) }
-    if (state.creatingProject) ProjectEditor(state, null)
-    state.editingProject?.let { ProjectEditor(state, it) }
 }
 
 @Composable
@@ -85,6 +88,12 @@ fun Header(title: String, action: (@Composable () -> Unit)? = null) {
 private fun InboxScreen(state: BrainAppState, modifier: Modifier) {
     Column(modifier.fillMaxSize()) {
         Header("Входящие")
+        if (state.pendingUpload) {
+            Text("Предыдущая запись сохранена в браузере и ожидает отправки в локальное хранилище.", Modifier.padding(horizontal = 20.dp))
+            val scope = rememberCoroutineScope()
+            Button(onClick = { scope.launch { state.recoverPending() } }, enabled = !state.recordingBusy, modifier = Modifier.padding(horizontal = 20.dp)) { Text("Повторить отправку") }
+        }
+        if (!state.connected) Text("Нет связи с локальным сервисом", Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.error)
         val inbox = state.inbox()
         if (inbox.isEmpty()) EmptyState("Здесь появятся ваши мысли", "Запись всегда под рукой внизу экрана.")
         else LazyColumn(Modifier.fillMaxSize()) {
@@ -100,7 +109,7 @@ private fun CaptureRow(capture: Capture, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(capture.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (capture.status in setOf(CaptureStatus.QUEUED, CaptureStatus.TRANSCRIBING, CaptureStatus.POLISHING)) {
+            if (capture.status in setOf(CaptureStatus.QUEUED, CaptureStatus.TRANSCRIBING, CaptureStatus.COMPACTING, CaptureStatus.POLISHING)) {
                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             }
         }
@@ -113,12 +122,12 @@ private fun CaptureRow(capture: Capture, onClick: () -> Unit) {
 @Composable
 private fun SettingsScreen(state: BrainAppState, modifier: Modifier) {
     val status = state.snapshot.runtime
-    Column(modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Header("Настройки")
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             StatusCard("Локальный runtime", if (status.localOnly) "Только этот компьютер" else "Проверьте настройки")
-            StatusCard("Whisper", if (status.whisperConfigured) "Готов" else "Не настроен")
-            StatusCard("Локальная LLM", if (status.llmConfigured) "Готова" else "Не настроена")
+            StatusCard("Whisper", if (status.whisperConfigured) "Настроен" else "Не настроен")
+            StatusCard("Локальная LLM", if (status.llmConfigured) "Настроена" else "Не настроена")
             if (status.message.isNotBlank()) Text(status.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Web и desktop используют тот же мобильный интерфейс. Широкая desktop-компоновка намеренно отсутствует.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -151,9 +160,9 @@ private fun RecorderBar(state: BrainAppState, onAction: (suspend () -> Unit) -> 
     Surface(color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.96f), tonalElevation = 3.dp) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(if (state.isRecording) Color(0xFFD14A3A) else MaterialTheme.colorScheme.outline))
-            Text(if (state.isRecording || state.isPaused) formatTime(state.elapsedSeconds) else "Готово к записи", modifier = Modifier.padding(start = 10.dp).weight(1f), fontWeight = FontWeight.Medium)
+            Text(if (state.isPaused) "Пауза · ${formatTime(state.elapsedSeconds)}" else if (state.isRecording) formatTime(state.elapsedSeconds) else "Готово к записи", modifier = Modifier.padding(start = 10.dp).weight(1f), fontWeight = FontWeight.Medium)
             when {
-                state.busy -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                state.recordingBusy -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                 state.isRecording -> {
                     OutlinedButton(onClick = { onAction { state.pauseRecording() } }) { Text("Пауза") }
                     Spacer(Modifier.width(8.dp))
@@ -177,6 +186,7 @@ private fun Onboarding(state: BrainAppState) {
         onDismissRequest = {},
         confirmButton = { Button(onClick = { scope.launch { state.consentAndStart() } }) { Text("Разрешить микрофон и начать") } },
         title = { Text("Откройте. Скажите. Сохраните.") },
+        dismissButton = { TextButton(onClick = state::browseOnly) { Text("Пока без записи") } },
         text = { Text("После разрешения микрофона 3rdBrain начинает запись при открытии. Запись всегда видна на нижней панели.") },
     )
 }
@@ -187,6 +197,7 @@ fun CaptureStatus.labelRu(): String = when (this) {
     CaptureStatus.RECORDING -> "Запись"
     CaptureStatus.QUEUED -> "Ожидает обработки"
     CaptureStatus.TRANSCRIBING -> "Распознавание"
+    CaptureStatus.COMPACTING -> "Сокращение пауз"
     CaptureStatus.POLISHING -> "Оформление"
     CaptureStatus.READY -> "Готово"
     CaptureStatus.NEEDS_MODEL -> "Нужна локальная модель"

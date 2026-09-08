@@ -30,10 +30,12 @@ jobs:
         with:
           gradle-version: '8.14.5'
           cache-read-only: false
+      - name: Аудиоинструменты
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
       - name: Сборка и тесты Kotlin
         run: |
           set -o pipefail
-          gradle --continue :shared:jvmTest :runtime:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
+          gradle --continue :shared:jvmTest :composeApp:jvmTest :runtime:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
       - name: Gradle Wrapper
         if: always()
         run: |
@@ -47,6 +49,7 @@ jobs:
             kotlin.log
             wrapper.zip
             shared/build/test-results
+            composeApp/build/test-results
             runtime/build/test-results
             composeApp/build/dist/wasmJs/productionExecutable
             runtime/build/install

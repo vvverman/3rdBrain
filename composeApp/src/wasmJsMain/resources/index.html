@@ -1,18 +1,9 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#111311">
-    <title>3rdBrain</title>
-    <style>
-        html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #101310; }
-        #ComposeTarget { width: 100%; height: 100%; display: block; }
-    </style>
-    <script type="application/javascript" src="skiko.js"></script>
-    <script type="application/javascript" src="composeApp.js"></script>
-</head>
-<body>
-<canvas id="ComposeTarget"></canvas>
-</body>
-</html>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>3rdBrain — голосовые заметки</title>
+<style>html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:#101310}#webApp{height:100%;width:100%;max-width:430px;margin:auto}</style>
+<script src="browser-platform.js"></script>
+<script src="composeApp.js" defer></script>
+</head><body><div id="webApp"></div><noscript>Для работы 3rdBrain нужен JavaScript и современный браузер с WebAssembly.</noscript></body></html>

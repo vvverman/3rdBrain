@@ -1,6 +1,8 @@
 package brain.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -46,6 +48,10 @@ private fun ProjectList(state: BrainAppState, modifier: Modifier) {
                     Row {
                         TextButton(onClick = { scope.launch { state.togglePin(project) } }) { Text(if (project.pinned) "Открепить" else "Закрепить") }
                         TextButton(onClick = { state.editingProject = project }) { Text("Править") }
+                        if (project.pinned) {
+                            TextButton(onClick = { scope.launch { state.movePin(project, -1) } }) { Text("Выше") }
+                            TextButton(onClick = { scope.launch { state.movePin(project, 1) } }) { Text("Ниже") }
+                        }
                     }
                 }
                 HorizontalDivider()
@@ -91,34 +97,35 @@ private fun NoteScreen(state: BrainAppState, note: Note, modifier: Modifier) {
         Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             TextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Заголовок") })
             TextField(body, { body = it }, Modifier.fillMaxWidth().weight(1f), label = { Text("Текст") })
+            val sources = state.snapshot.captures.filter { it.noteId == note.id }
+            if (sources.isNotEmpty()) {
+                Text("Источники · ${sources.size}", style = MaterialTheme.typography.titleSmall)
+                LazyColumn(Modifier.heightIn(max = 130.dp)) {
+                    items(sources, key = { it.id }) { source -> TextButton(onClick = { state.route = RouteStep(source.id) }) { Text(source.title, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+                }
+            }
         }
     }
 }
 
 @Composable
-fun ProjectEditor(state: BrainAppState, project: Project?) {
+fun ProjectEditorScreen(state: BrainAppState, project: Project?, modifier: Modifier) {
     val scope = rememberCoroutineScope()
     var title by remember(project?.id) { mutableStateOf(project?.title ?: "") }
     var description by remember(project?.id) { mutableStateOf(project?.description ?: "") }
     var instruction by remember(project?.id) { mutableStateOf(project?.instruction ?: "") }
-    AlertDialog(
-        onDismissRequest = { state.creatingProject = false; state.editingProject = null },
-        confirmButton = {
-            Button(enabled = title.isNotBlank(), onClick = {
-                scope.launch {
-                    if (project == null) state.createProject(title, description, instruction)
-                    else state.updateProject(project, title, description, instruction)
-                }
-            }) { Text("Сохранить") }
-        },
-        dismissButton = { TextButton(onClick = { state.creatingProject = false; state.editingProject = null }) { Text("Отмена") } },
-        title = { Text(if (project == null) "Новый проект" else "Настройки проекта") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                TextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Название") })
-                TextField(description, { description = it }, Modifier.fillMaxWidth(), label = { Text("Описание") }, minLines = 2)
-                TextField(instruction, { instruction = it }, Modifier.fillMaxWidth(), label = { Text("Что сюда складывать") }, minLines = 4)
-            }
-        },
-    )
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = { state.creatingProject = false; state.editingProject = null }) { Text("Отмена") }
+            TextButton(enabled = title.isNotBlank() && !state.busy, onClick = { scope.launch {
+                if (project == null) state.createProject(title, description, instruction)
+                else state.updateProject(project, title, description, instruction)
+            } }) { Text("Сохранить") }
+        }
+        Text(if (project == null) "Новый проект" else "Настройки проекта", style = MaterialTheme.typography.headlineSmall)
+        OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Название") })
+        OutlinedTextField(description, { description = it }, Modifier.fillMaxWidth(), label = { Text("Описание") }, minLines = 2)
+        OutlinedTextField(instruction, { instruction = it }, Modifier.fillMaxWidth(), label = { Text("Что сюда складывать") }, minLines = 4)
+        Text("Опишите тему и исключения. ИИ только сортирует проекты; место сохранения выбираете вы.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }

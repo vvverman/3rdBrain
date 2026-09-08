@@ -8,6 +8,8 @@ plugins {
 }
 
 kotlin {
+    jvm()
+    jvmToolchain(21)
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser {
@@ -30,6 +32,10 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
+        }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
         }
         wasmJsMain.dependencies {
             implementation(libs.ktor.client.js)

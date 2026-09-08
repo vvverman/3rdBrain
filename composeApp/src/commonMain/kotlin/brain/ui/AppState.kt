@@ -1,223 +1,154 @@
 package brain.ui
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import brain.domain.ProjectOrder
-import brain.model.AppSnapshot
-import brain.model.Capture
-import brain.model.CaptureDraftUpdate
-import brain.model.DistributionRequest
-import brain.model.Note
-import brain.model.NoteUpdate
-import brain.model.Project
-import brain.model.ProjectDraft
-import brain.model.ProjectUpdate
+import androidx.compose.runtime.*
+import brain.domain.*
+import brain.model.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
-
-interface AudioGateway {
-    suspend fun playCapture(captureId: String)
-    fun stop()
-}
-
-interface RecorderGateway {
-    suspend fun hasConsent(): Boolean
-    suspend fun start()
-    suspend fun pause()
-    suspend fun resume()
-    suspend fun stopAndUpload(): Capture
-}
-
-interface BrainRepository {
-    suspend fun snapshot(): AppSnapshot
-    suspend fun createProject(draft: ProjectDraft): Project
-    suspend fun updateProject(id: String, update: ProjectUpdate): Project
-    suspend fun pinProject(id: String, pinned: Boolean): Project
-    suspend fun updateCaptureDraft(id: String, update: CaptureDraftUpdate): Capture
-    suspend fun distribute(id: String, request: DistributionRequest): Note
-    suspend fun updateNote(id: String, update: NoteUpdate): Note
-    suspend fun reprocess(id: String): Capture
-}
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 enum class MainTab { INBOX, PROJECTS, SETTINGS }
 data class RouteStep(val captureId: String, val projectId: String? = null)
 
-class BrainAppState(
-    val repository: BrainRepository,
-    val recorder: RecorderGateway,
-    val audio: AudioGateway,
-) {
-    var snapshot by mutableStateOf(AppSnapshot())
-        private set
+class BrainAppState(val repository: BrainRepository, val recorder: RecorderGateway, val audio: AudioGateway) {
+    var snapshot by mutableStateOf(AppSnapshot()); private set
+    var connected by mutableStateOf(false); private set
     var tab by mutableStateOf(MainTab.INBOX)
-    var onboarding by mutableStateOf(false)
-        private set
-    var isRecording by mutableStateOf(false)
-        private set
-    var isPaused by mutableStateOf(false)
-        private set
-    var elapsedSeconds by mutableStateOf(0L)
-        private set
-    var busy by mutableStateOf(false)
-        private set
-    var error by mutableStateOf<String?>(null)
-        private set
+    var onboarding by mutableStateOf(false); private set
+    var isRecording by mutableStateOf(false); private set
+    var isPaused by mutableStateOf(false); private set
+    var pendingUpload by mutableStateOf(false); private set
+    var elapsedSeconds by mutableStateOf(0L); private set
+    var busy by mutableStateOf(false); private set
+    var recordingBusy by mutableStateOf(false); private set
+    var error by mutableStateOf<String?>(null); private set
     var route by mutableStateOf<RouteStep?>(null)
     var editingProject by mutableStateOf<Project?>(null)
     var selectedProjectId by mutableStateOf<String?>(null)
     var selectedNoteId by mutableStateOf<String?>(null)
     var creatingProject by mutableStateOf(false)
-
-    private var startedAtMillis = 0L
+    private var started = false
+    private var mark: TimeMark? = null
+    private var previousMillis = 0L
 
     suspend fun launch() {
+        if (started) return
+        started = true
         refresh()
-        onboarding = !recorder.hasConsent()
-        if (!onboarding) runCatching { startRecording() }.onFailure { error = it.message }
-    }
-
-    suspend fun refresh() {
-        runCatching { snapshot = repository.snapshot() }.onFailure { error = it.message }
-    }
-
-    suspend fun consentAndStart() {
         runAction {
-            recorder.start()
-            onboarding = false
-            markRecordingStarted()
+            pendingUpload = recorder.hasPending()
+            onboarding = !recorder.hasConsent()
+        }
+        if (!onboarding && !pendingUpload) startRecording()
+    }
+    fun browseOnly() { onboarding = false }
+    suspend fun refresh(silent: Boolean = false) {
+        try { snapshot = repository.snapshot(); connected = true }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { connected = false; if (!silent) error = "Локальный сервис недоступен. Запустите ./run-web.sh. ${e.message.orEmpty()}" }
+    }
+    suspend fun consentAndStart() { if (startRecording()) onboarding = false }
+    suspend fun startRecording(): Boolean {
+        if (isRecording || isPaused) return false
+        return recordingAction {
+            check(!pendingUpload) { "Сначала сохраните предыдущую запись кнопкой «Повторить отправку»" }
+            audio.stop(); recorder.start(); isRecording = true; isPaused = false
+            previousMillis = 0; elapsedSeconds = 0; mark = TimeSource.Monotonic.markNow()
         }
     }
-
-    suspend fun startRecording() {
-        if (isRecording || isPaused) return
-        runAction {
-            recorder.start()
-            markRecordingStarted()
+    suspend fun pauseRecording(): Boolean {
+        if (!isRecording) return false
+        return recordingAction {
+            recorder.pause(); previousMillis += mark?.elapsedNow()?.inWholeMilliseconds ?: 0
+            mark = null; elapsedSeconds = previousMillis / 1000; isRecording = false; isPaused = true
         }
     }
-
-    suspend fun pauseRecording() {
-        if (!isRecording) return
-        runAction {
-            recorder.pause()
-            isRecording = false
-            isPaused = true
-        }
-    }
-
     suspend fun resumeRecording() {
         if (!isPaused) return
-        runAction {
-            recorder.resume()
-            isRecording = true
-            isPaused = false
-            startedAtMillis = nowMillis() - elapsedSeconds * 1000
-        }
+        recordingAction { audio.stop(); recorder.resume(); mark = TimeSource.Monotonic.markNow(); isRecording = true; isPaused = false }
     }
-
     suspend fun stopRecording() {
         if (!isRecording && !isPaused) return
-        runAction {
-            val capture = recorder.stopAndUpload()
-            isRecording = false
-            isPaused = false
-            elapsedSeconds = 0
-            refresh()
-            route = RouteStep(capture.id)
+        recordingAction {
+            try {
+                val capture = recorder.stopAndUpload()
+                pendingUpload = false; refresh(); route = RouteStep(capture.id)
+            } finally {
+                val phase = recorder.phase()
+                isRecording = phase == "recording"; isPaused = phase == "paused"
+                pendingUpload = recorder.hasPending(); if (!isRecording && !isPaused) { mark = null; elapsedSeconds = 0 }
+            }
         }
     }
-
+    suspend fun recoverPending() {
+        recordingAction {
+            val capture = recorder.recoverPending()
+            pendingUpload = recorder.hasPending(); refresh(); route = RouteStep(capture.id)
+        }
+    }
     suspend fun tickRecordingClock() {
-        while (isRecording) {
-            elapsedSeconds = ((nowMillis() - startedAtMillis) / 1000).coerceAtLeast(0)
+        while (isRecording || isPaused) {
+            val phase = recorder.phase()
+            if (phase != "recording" && phase != "paused") {
+                isRecording = false; isPaused = false; pendingUpload = recorder.hasPending()
+                error = "Запись остановлена браузером. Доступную часть можно сохранить через повторную отправку"; break
+            }
+            elapsedSeconds = (previousMillis + (mark?.elapsedNow()?.inWholeMilliseconds ?: 0)).coerceAtLeast(0) / 1000
             delay(500)
         }
     }
-
-    suspend fun createProject(title: String, description: String, instruction: String) {
-        runAction {
-            repository.createProject(ProjectDraft(title.trim(), description.trim(), instruction.trim()))
-            creatingProject = false
-            refresh()
-        }
-    }
-
-    suspend fun updateProject(project: Project, title: String, description: String, instruction: String) {
-        runAction {
-            repository.updateProject(project.id, ProjectUpdate(title.trim(), description.trim(), instruction.trim()))
-            editingProject = null
-            refresh()
-        }
-    }
-
-    suspend fun togglePin(project: Project) {
-        runAction {
-            repository.pinProject(project.id, !project.pinned)
-            refresh()
-        }
-    }
-
-    suspend fun saveCaptureDraft(capture: Capture, title: String, text: String) {
-        runAction {
-            repository.updateCaptureDraft(capture.id, CaptureDraftUpdate(title.trim(), text))
-            refresh()
-        }
-    }
-
-    suspend fun distribute(capture: Capture, project: Project, note: Note?) {
-        runAction {
-            repository.distribute(capture.id, DistributionRequest(projectId = project.id, noteId = note?.id, title = capture.title))
-            route = null
-            refresh()
-        }
-    }
-
-    suspend fun updateNote(note: Note, title: String, body: String) {
-        runAction {
-            repository.updateNote(note.id, NoteUpdate(title.trim().ifBlank { "Без названия" }, body))
-            refresh()
-        }
-    }
-
-    suspend fun playSource(capture: Capture) {
-        if (isRecording) pauseRecording()
-        runAction { audio.playCapture(capture.id) }
-    }
-
     suspend fun pollProcessing() {
         while (true) {
             delay(1400)
-            if (snapshot.captures.any { it.status.name in setOf("QUEUED", "TRANSCRIBING", "POLISHING") }) refresh()
+            if (!connected || snapshot.captures.any { it.status.isWorking }) refresh(silent = true)
         }
     }
-
-    suspend fun reprocess(capture: Capture) {
-        runAction {
-            repository.reprocess(capture.id)
-            refresh()
-        }
+    suspend fun createProject(title: String, description: String, instruction: String) = runAction {
+        repository.createProject(ProjectDraft(title.trim(), description.trim(), instruction.trim())); creatingProject = false; refresh()
     }
-
+    suspend fun updateProject(project: Project, title: String, description: String, instruction: String) = runAction {
+        repository.updateProject(project.id, ProjectUpdate(title.trim(), description.trim(), instruction.trim())); editingProject = null; refresh()
+    }
+    suspend fun togglePin(project: Project) = runAction { repository.pinProject(project.id, !project.pinned); refresh() }
+    suspend fun movePin(project: Project, delta: Int) = runAction {
+        val ids = orderedProjects(null).filter { it.pinned }.map { it.id }.toMutableList()
+        val index = ids.indexOf(project.id); val target = index + delta
+        if (index in ids.indices && target in ids.indices) { ids.removeAt(index); ids.add(target, project.id); repository.orderPins(ids); refresh() }
+    }
+    suspend fun saveCaptureDraft(capture: Capture, title: String, text: String) = runAction {
+        repository.updateCaptureDraft(capture.id, CaptureDraftUpdate(title.trim(), text)); refresh()
+    }
+    suspend fun saveAndDistribute(capture: Capture, project: Project, note: Note?, title: String, text: String) = runAction {
+        // Не продолжаем распределение, если сохранение редактируемого черновика не удалось.
+        val updated = if (capture.title != title.trim() || capture.textToSave != text)
+            repository.updateCaptureDraft(capture.id, CaptureDraftUpdate(title.trim(), text)) else capture
+        repository.distribute(updated.id, DistributionRequest(project.id, note?.id, updated.title)); route = null; refresh()
+    }
+    suspend fun updateNote(note: Note, title: String, body: String) = runAction {
+        repository.updateNote(note.id, NoteUpdate(title.trim().ifBlank { "Без названия" }, body)); refresh()
+    }
+    suspend fun playSource(capture: Capture, compact: Boolean = false, time: Double = 0.0, rate: Double = 1.0) {
+        if (isRecording && !pauseRecording()) return
+        runAction { audio.playCapture(capture.id, compact, if (compact) AudioTimeline.compactTime(time, capture.spans) else time, rate) }
+    }
+    suspend fun reprocess(capture: Capture) = runAction { repository.reprocess(capture.id); refresh() }
     fun orderedProjects(capture: Capture?): List<Project> = ProjectOrder.sorted(snapshot.projects, capture?.relevance ?: emptyMap())
-    fun notes(project: Project): List<Note> = snapshot.notes.filter { it.projectId == project.id }.sortedByDescending { it.updatedAt }
-    fun inbox(): List<Capture> = snapshot.captures.filter { it.noteId == null }.sortedByDescending { it.createdAt }
+    fun notes(project: Project): List<Note> = SnapshotQueries.notes(project.id, snapshot.notes)
+    fun inbox(): List<Capture> = SnapshotQueries.inbox(snapshot.captures)
     fun capture(id: String): Capture? = snapshot.captures.firstOrNull { it.id == id }
     fun project(id: String): Project? = snapshot.projects.firstOrNull { it.id == id }
     fun clearError() { error = null }
-
-    private suspend fun runAction(block: suspend () -> Unit) {
-        if (busy) return
+    private suspend fun runAction(block: suspend () -> Unit): Boolean {
+        if (busy) return false
         busy = true
-        try { block() } catch (t: Throwable) { error = t.message ?: t::class.simpleName ?: "Ошибка" }
-        finally { busy = false }
+        return try { block(); true } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { error = e.message ?: "Ошибка"; false } finally { busy = false }
     }
-
-    private fun markRecordingStarted() {
-        isRecording = true
-        isPaused = false
-        elapsedSeconds = 0
-        startedAtMillis = nowMillis()
+    private suspend fun recordingAction(block: suspend () -> Unit): Boolean {
+        if (recordingBusy) return false
+        recordingBusy = true
+        return try { block(); true } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { error = e.message ?: "Ошибка записи"; false } finally { recordingBusy = false }
     }
 }
-
-private fun nowMillis(): Long = kotlin.time.Clock.System.now().toEpochMilliseconds()
