@@ -7,6 +7,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 info = plistlib.loads((ROOT / "ThirdBrain/Info.plist").read_bytes())
+assert info.get("CFBundleDevelopmentRegion") == "ru"
+assert info.get("CFBundleLocalizations") == ["ru"]
 assert info.get("NSMicrophoneUsageDescription"), "Нет пояснения доступа к микрофону"
 assert info.get("NSSpeechRecognitionUsageDescription"), "Нет пояснения распознавания"
 assert info.get("UIBackgroundModes") == ["audio"], "Неожиданные фоновые возможности"

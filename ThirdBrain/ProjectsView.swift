@@ -22,7 +22,7 @@ struct ProjectsView: View {
         }
         .navigationTitle("Проекты")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { if !pinned.isEmpty { EditButton() } }
+            ToolbarItem(placement: .topBarLeading) { if !pinned.isEmpty { EditButton().accessibilityIdentifier("projects.editPins") } }
             ToolbarItem(placement: .topBarTrailing) { Button("Создать проект", systemImage: "plus") { creating = true } }
         }
         .overlay {

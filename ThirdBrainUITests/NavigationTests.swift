@@ -28,6 +28,9 @@ import XCTest
         app.launch()
         app.tabBars.buttons["Проекты"].tap()
         XCTAssertLessThan(app.staticTexts["Работа"].firstMatch.frame.minY, app.staticTexts["Личное"].firstMatch.frame.minY)
+        let editPins = app.buttons["projects.editPins"]
+        XCTAssertTrue(editPins.exists)
+        XCTAssertNotEqual(editPins.label, "Edit", "Системная кнопка должна соответствовать русскому интерфейсу")
         app.buttons["Создать проект"].tap()
         let name = app.textFields["Название"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
