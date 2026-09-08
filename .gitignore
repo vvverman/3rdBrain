@@ -6,3 +6,11 @@ DerivedData/
 xcuserdata/
 *.xcresult
 build.log
+DerivedDataDevice/
+Screenshots/
+core.log
+core-release.log
+simulator.log
+device-release.log
+source.zip
+boot.log

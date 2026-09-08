@@ -11,6 +11,11 @@ import SwiftUI
         WindowGroup {
             if let controller {
                 RootView(app: controller)
+                    .transformEnvironment(\.dynamicTypeSize) { size in
+                        #if DEBUG
+                        if AppController.uiTesting && ProcessInfo.processInfo.arguments.contains("--ui-large-text") { size = .accessibility3 }
+                        #endif
+                    }
             } else {
                 ContentUnavailableView {
                     Label("Не удалось открыть хранилище", systemImage: "externaldrive.badge.exclamationmark")

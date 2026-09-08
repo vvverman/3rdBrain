@@ -21,7 +21,7 @@ struct SourceView: View {
                         if isCurrent && app.player.isPlaying { app.player.pause() }
                         else if isCurrent {
                             if app.player.position >= duration - 0.2 { app.player.seek(to: 0) }
-                            app.player.resume()
+                            app.attempt { try app.player.resume() }
                         } else { app.play(capture, compact: compact) }
                     } label: {
                         Image(systemName: isCurrent && app.player.isPlaying ? "pause.fill" : "play.fill")
@@ -35,6 +35,9 @@ struct SourceView: View {
                             Text("1,5×").tag(Float(1.5)); Text("2×").tag(Float(2))
                         }
                     } label: { Text(String(format: "%g×", app.player.rate)).monospacedDigit() }
+                }
+                if isCurrent, let message = app.player.errorMessage {
+                    Label(message, systemImage: "exclamationmark.triangle").font(.footnote)
                 }
                 Slider(value: Binding(get: { isCurrent ? min(duration, max(0, app.player.position)) : 0 }, set: { app.player.seek(to: $0) }), in: 0...max(0.1, duration))
                     .disabled(!isCurrent).accessibilityLabel("Позиция воспроизведения")

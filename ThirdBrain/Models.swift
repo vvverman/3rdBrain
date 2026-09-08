@@ -45,6 +45,7 @@ enum CapturePhase: String {
         case .failed: "Нужна повторная обработка"
         }
     }
+    var allowsEditing: Bool { self == .ready || self == .failed }
     var isWorking: Bool { [.queued, .transcribing, .compacting, .polishing].contains(self) }
 }
 
