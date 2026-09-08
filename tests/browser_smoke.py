@@ -32,28 +32,37 @@ with sync_playwright() as p:
     context = browser.new_context(viewport={'width':1440,'height':900}, locale='ru-RU')
     page = context.new_page(); errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
+    def click_button(name):
+        # Compose рисует UI в canvas; DOM-узлы семантики находятся под ним.
+        # Обычный щелчок мышью по координатам видимой кнопки проходит через canvas.
+        button = page.get_by_role('button', name=name, exact=True)
+        button.wait_for(state='visible', timeout=30000)
+        box = button.bounding_box()
+        assert box and box['width'] > 0 and box['height'] > 0, name
+        page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
+
     try:
         page.goto(BASE, wait_until='networkidle', timeout=60000)
         page.locator('canvas').first.wait_for(state='visible', timeout=30000)
-        page.get_by_role('button', name='Пока без записи', exact=True).click(timeout=30000)
+        click_button('Пока без записи')
         assert page.locator('#webApp').bounding_box()['width'] == 430
         page.screenshot(path=str(OUT/'desktop-mobile-layout.png'))
         # Проверяем настоящий browser MediaRecorder с синтетическим микрофоном Chrome.
-        page.get_by_role('button', name='Записать', exact=True).click()
+        click_button('Записать')
         page.wait_for_function('thirdBrainPlatform.phase() === "recording"')
         page.wait_for_timeout(1600)
-        page.get_by_role('button', name='Пауза', exact=True).click()
+        click_button('Пауза')
         page.wait_for_function('thirdBrainPlatform.phase() === "paused"')
-        page.get_by_role('button', name='Продолжить', exact=True).click()
+        click_button('Продолжить')
         page.wait_for_function('thirdBrainPlatform.phase() === "recording"')
         page.route('**/api/captures/audio', lambda route: route.abort())
-        page.get_by_role('button', name='Готово', exact=True).click()
+        click_button('Готово')
         page.wait_for_function('thirdBrainPlatform.phase() === "idle"')
         page.wait_for_function('thirdBrainPlatform.pending()')
-        page.get_by_role('button', name='Понятно', exact=True).click()
+        click_button('Понятно')
         page.unroute('**/api/captures/audio')
         page.reload(wait_until='networkidle')
-        page.get_by_role('button', name='Повторить отправку', exact=True).click(timeout=30000)
+        click_button('Повторить отправку')
         page.wait_for_function('thirdBrainPlatform.pending().then(v => !v)')
         capture = api('snapshot')['captures'][0]
         for _ in range(30):
@@ -83,6 +92,7 @@ with sync_playwright() as p:
         print('BROWSER SMOKE PASSED: 7 проверок, без настоящих весов моделей')
     finally:
         (OUT/'browser.html').write_text(page.content())
+        (OUT/'accessibility.txt').write_text(page.locator('body').aria_snapshot())
         (OUT/'page-errors.json').write_text(json.dumps(errors, ensure_ascii=False))
         page.screenshot(path=str(OUT/'last-screen.png'))
         browser.close()

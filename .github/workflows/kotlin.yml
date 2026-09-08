@@ -40,7 +40,7 @@ jobs:
       - name: Сборка и тесты Kotlin
         run: |
           set -o pipefail
-          gradle --continue :shared:jvmTest :composeApp:jvmTest :runtime:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
+          gradle --no-build-cache --continue :shared:jvmTest :composeApp:jvmTest :runtime:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
       - name: Браузерный сценарий
         run: |
           python -m pip install playwright==1.55.0
