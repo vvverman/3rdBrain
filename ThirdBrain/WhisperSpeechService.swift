@@ -123,7 +123,7 @@ actor WhisperSpeechService {
         let tokenizer = try await AutoTokenizerWrapper.from(modelFolder: paths.tokenizer)
         let pipe = try await WhisperKit(WhisperKitConfig(modelFolder: paths.model.path,
             tokenizerFolder: paths.tokenizer, verbose: false, prewarm: false, load: false, download: false))
-        pipe.tokenizer = WhisperTokenizerWrapper(tokenizer: tokenizer, at: paths.tokenizer)
+        pipe.tokenizer = try LocalWhisperTokenizer(tokenizer)
         pipe.textDecoder.isModelMultilingual = true
         do {
             try Task.checkCancellation()
