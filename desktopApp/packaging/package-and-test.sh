@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+OUT="$PWD/macos-output"
+APP="$PWD/desktopApp/build/compose/binaries/main/app/3rdBrain.app"
+mkdir -p "$OUT"
+exec > >(tee -a "$OUT/packaging.log") 2>&1
+[ -d "$APP" ]
+phase() { echo "$(date -u '+%FT%TZ') Этап: $1"; printf '%s\n' "$1" > "$OUT/phase.txt"; }
+phase 'Права запуска и подпись'
+RES="$APP/Contents/app/resources"
+for name in whisper-cli llama-completion ffmpeg; do
+ test -f "$RES/bin/$name"
+ chmod 755 "$RES/bin/$name"
+ test -x "$RES/bin/$name"
+done
+{ ls -l "$RES/bin"; cat "$APP/Contents/app/3rdBrain.cfg"; } > "$OUT/launcher-config.txt"
+while IFS= read -r -d '' file; do
+ if /usr/bin/file -b "$file" | grep -q 'Mach-O'; then
+  /usr/bin/codesign --force --sign - --timestamp=none "$file"
+ fi
+done < <(find "$APP/Contents" -type f -print0)
+/usr/bin/codesign --force --deep --sign - --timestamp=none --entitlements desktopApp/packaging/entitlements.plist "$APP"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+/usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$APP/Contents/Info.plist"
+rm -rf desktopApp/bundle/common
+if [ -d desktopApp/build/native ]; then mv desktopApp/build/native desktopApp/build/native-not-on-path; fi
+TEST_HOME="$OUT/clean-home"
+mkdir -p "$TEST_HOME"
+phase 'Русский сценарий внутри приложения без сети'
+python3 - "$APP" "$OUT" "$PWD/model-test/russian.wav" "${TMPDIR:-/tmp}" <<'PY'
+import json, os, pathlib, signal, subprocess, sys, time
+app, out, fixture = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
+env = {'HOME':str(out/'clean-home'), 'PATH':'/usr/bin:/bin:/usr/sbin:/sbin', 'TMPDIR':sys.argv[4]}
+command = ['/usr/bin/sandbox-exec','-p','(version 1)(allow default)(deny network*)',
+           str(app/'Contents/MacOS/3rdBrain'),'--self-test',str(out/'self-test'),fixture]
+with (out/'self-test.log').open('w') as log:
+    process = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    started = time.monotonic()
+    try:
+        while process.poll() is None:
+            elapsed = time.monotonic()-started
+            db = out/'self-test/data/brain.json'
+            if db.exists():
+                try:
+                    state = json.loads(db.read_text())
+                    print('Самопроверка:', round(elapsed), 'с;', [(c['status'], c.get('message','')) for c in state.get('captures',[])], flush=True)
+                except (OSError, ValueError): pass
+            else:
+                print('Самопроверка: запуск JVM,', round(elapsed), 'с', flush=True)
+            if elapsed > 600:
+                subprocess.run(['/bin/ps','-axo','pid,ppid,state,%cpu,etime,command'], stdout=log, stderr=log)
+                raise TimeoutError('Автономная проверка не завершилась за допустимое время')
+            time.sleep(10)
+        if process.returncode:
+            raise RuntimeError('Автономная проверка завершилась с кодом '+str(process.returncode))
+    finally:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+print((out/'self-test.log').read_text(), flush=True)
+PY
+phase 'Настоящее окно приложения'
+env -i HOME="$TEST_HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin TMPDIR="${TMPDIR:-/tmp}" \
+ THIRDBRAIN_HOME="$OUT/ui-data" "$APP/Contents/MacOS/3rdBrain" --ui-smoke "$OUT" > "$OUT/ui.log" 2>&1 &
+PID=$!
+for n in {1..40}; do
+ [ -f "$OUT/ui-ready.txt" ] && break
+ kill -0 "$PID" 2>/dev/null || { cat "$OUT/ui.log"; exit 1; }
+ sleep 1
+done
+[ -f "$OUT/ui-ready.txt" ]
+/usr/sbin/screencapture -x "$OUT/macos-window.png" || true
+wait "$PID"
+phase 'Создание установочного образа'
+STAGE="$OUT/volume"
+mkdir -p "$STAGE"
+mv "$APP" "$STAGE/3rdBrain.app"
+ln -s /Applications "$STAGE/Applications"
+cp desktopApp/packaging/Установка.txt "$STAGE/Установка.txt"
+# Обычное сжатие контейнера без изменения весов нейросетей.
+hdiutil create -volname '3rdBrain' -srcfolder "$STAGE" -ov -format UDZO -imagekey zlib-level=1 "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
+phase 'Проверка готового DMG'
+hdiutil verify "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
+(cd "$OUT" && shasum -a 256 3rdBrain-1.0.0-macOS-arm64.dmg > SHA256SUMS.txt)
+MOUNT="$OUT/mounted"
+mkdir -p "$MOUNT"
+hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
+codesign --verify --deep --strict "$MOUNT/3rdBrain.app"
+test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/whisper-cli"
+test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/llama-completion"
+test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/ffmpeg"
+hdiutil detach "$MOUNT"
+python3 - <<'PY'
+import json, pathlib, platform
+out=pathlib.Path('macos-output')
+dmg=out/'3rdBrain-1.0.0-macOS-arm64.dmg'
+report={'passed':True,'file':dmg.name,'bytes':dmg.stat().st_size,'architecture':platform.machine(),
+        'macOS':platform.mac_ver()[0],'bundledJava':True,'bundledModels':['Whisper Small','Qwen3-4B Q4_K_M'],
+        'externalNetworkDeniedDuringInference':True,'developerIdSigned':False,'notarized':False,
+        'microphoneHardwareTested':False,'ui':(out/'ui-ready.txt').read_text(),
+        'selfTest':json.loads((out/'self-test/self-test.json').read_text())}
+(out/'BUILD-REPORT.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+PY
+phase 'Установщик проверен'

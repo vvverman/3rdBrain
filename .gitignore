@@ -1,4 +1,3 @@
-# Локальная сборка и настройки
 .gradle/
 .kotlin/
 **/build/
@@ -9,8 +8,6 @@ node_modules/
 .env
 .env.*
 !.env.example
-.local-models/
-# Не коммитить записи, веса и результаты тестов
 *.gguf
 *.bin
 *.wav
@@ -20,3 +17,10 @@ node_modules/
 *.zip
 test-output/
 __pycache__/
+.local-models/
+.build-python/
+desktopApp/bundle/
+desktopApp/packaging/*.icns
+desktopApp/packaging/*.iconset/
+macos-output/
+model-test/

@@ -66,7 +66,6 @@ fun BrainApp(state: BrainAppState) {
             }
         }
     }
-
 }
 
 @Composable
@@ -92,17 +91,15 @@ private fun InboxScreen(state: BrainAppState, modifier: Modifier) {
     Column(modifier.fillMaxSize()) {
         Header("Входящие")
         if (state.pendingUpload) {
-            Text("Предыдущая запись сохранена в браузере и ожидает отправки в локальное хранилище.", Modifier.padding(horizontal = 20.dp))
+            Text("Предыдущая запись сохранена локально и ожидает восстановления.", Modifier.padding(horizontal = 20.dp))
             val scope = rememberCoroutineScope()
             Button(onClick = { scope.launch { state.recoverPending() } }, enabled = !state.recordingBusy, modifier = Modifier.padding(horizontal = 20.dp)) { Text("Повторить отправку") }
         }
-        if (!state.connected) Text("Нет связи с локальным сервисом", Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.error)
+        if (!state.connected) Text("Нет связи с локальным хранилищем", Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.error)
         val inbox = state.inbox()
         if (inbox.isEmpty()) EmptyState("Здесь появятся ваши мысли", "Запись всегда под рукой внизу экрана.")
         else LazyColumn(Modifier.fillMaxSize()) {
-            items(inbox, key = { it.id }) { capture ->
-                CaptureRow(capture) { state.route = RouteStep(capture.id) }
-            }
+            items(inbox, key = { it.id }) { capture -> CaptureRow(capture) { state.route = RouteStep(capture.id) } }
         }
     }
 }
@@ -128,11 +125,11 @@ private fun SettingsScreen(state: BrainAppState, modifier: Modifier) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Header("Настройки")
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatusCard("Локальный runtime", if (status.localOnly) "Только этот компьютер" else "Проверьте настройки")
+            StatusCard("Хранение", if (status.localOnly) "На этом устройстве" else "Проверьте настройки")
             StatusCard("Whisper", if (status.whisperConfigured) "Настроен" else "Не настроен")
             StatusCard("Локальная LLM", if (status.llmConfigured) "Настроена" else "Не настроена")
             if (status.message.isNotBlank()) Text(status.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Web и desktop используют тот же мобильный интерфейс. Широкая desktop-компоновка намеренно отсутствует.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Записи, транскрипты и модели хранятся локально. Оригинальное аудио остаётся доступным в источниках заметки.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -185,15 +182,12 @@ private fun RecorderBar(state: BrainAppState, onAction: (suspend () -> Unit) -> 
 @Composable
 private fun Onboarding(state: BrainAppState, modifier: Modifier) {
     val scope = rememberCoroutineScope()
-    // Один Compose-сценарий без отдельного popup: семантика кнопок обновляется вместе с UI.
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Spacer(Modifier.height(24.dp))
         Text("Откройте. Скажите. Сохраните.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
         Text("После разрешения микрофона 3rdBrain начинает запись при открытии. Запись всегда видна на нижней панели.")
-        Text("Можно просматривать заметки во время записи. Аудио и текст остаются на этом компьютере.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(enabled = !state.recordingBusy, modifier = Modifier.fillMaxWidth(), onClick = { scope.launch { state.consentAndStart() } }) {
-            Text("Разрешить микрофон и начать")
-        }
+        Text("Можно просматривать заметки во время записи. Аудио и текст остаются на этом устройстве.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Button(enabled = !state.recordingBusy, modifier = Modifier.fillMaxWidth(), onClick = { scope.launch { state.consentAndStart() } }) { Text("Разрешить микрофон и начать") }
         TextButton(onClick = state::browseOnly, modifier = Modifier.fillMaxWidth()) { Text("Пока без записи") }
     }
 }
