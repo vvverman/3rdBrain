@@ -9,6 +9,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+.local-models/
 # Не коммитить записи, веса и результаты тестов
 *.gguf
 *.bin
