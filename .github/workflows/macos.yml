@@ -1,0 +1,76 @@
+name: Автономный установщик macOS
+on:
+  push:
+    branches: [macos-installer]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: macos-installer-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: aarch64
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.5'
+      - name: Инструменты только сборочного Mac
+        run: |
+          uname -a
+          df -h .
+          command -v cmake || brew install cmake
+          command -v ffmpeg || brew install ffmpeg
+          python3 -m venv .build-python
+          .build-python/bin/pip install pillow==11.3.0 piper-tts==1.4.2
+          .build-python/bin/python desktopApp/packaging/make-icon.py
+      - name: Все тесты Kotlin, включая нативные адаптеры
+        run: |
+          set -o pipefail
+          gradle :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee macos-compile.log
+      - name: Статические движки и исходные модели внутри приложения
+        run: bash desktopApp/packaging/build-native.sh
+      - name: Тестовая русская речь
+        run: |
+          .build-python/bin/python tests/make-russian-fixture.py
+          mkdir -p model-test
+          cp test-output/real-models/russian-with-pauses.wav model-test/russian.wav
+      - name: Самодостаточный .app с Java внутри
+        run: gradle :desktopApp:createDistributable
+      - name: Запуск без зависимостей и сети, проверка DMG
+        run: bash desktopApp/packaging/package-and-test.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-verification-${{ github.sha }}
+          retention-days: 7
+          path: |
+            macos-compile.log
+            macos-output/*.json
+            macos-output/*.txt
+            macos-output/*.log
+            macos-output/*.png
+            macos-output/self-test/*.json
+            macos-output/self-test/*.log
+            desktopApp/build/compose/logs
+            shared/build/test-results
+            composeApp/build/test-results
+            runtime/build/test-results
+            desktopApp/build/test-results
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 3rdBrain-macOS-arm64
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            macos-output/3rdBrain-0.2.0-macOS-arm64.dmg
+            macos-output/SHA256SUMS.txt
+            desktopApp/packaging/Установка.txt
