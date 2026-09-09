@@ -65,6 +65,7 @@ for stem in ('проект','приложен','запис','пауз','заме
     assert stem in c['transcript'].lower(), c['transcript']
     assert stem in c['preparedText'].lower(), c['preparedText']
 assert 'нельзя' in c['transcript'].lower() and 'нельзя' in c['preparedText'].lower()
+assert any(stem in c['title'].lower() for stem in ('приложен','запис','голос','пауз','замет')), c['title']
 assert c['relevance'][projects[0]['id']] > c['relevance'][projects[1]['id']], c['relevance']
 assert c['compactAudioFileName'] and c['compactDurationSeconds'] < c['durationSeconds'] - 2
 with urllib.request.urlopen(BASE + 'captures/' + cid + '/audio') as response: original = response.read()
@@ -78,6 +79,7 @@ result = {'passed':True, 'speech':'Piper ru_RU-irina-medium, синтезиро�
           'whisper':'small','llm':'Qwen3-4B Q4_K_M (без режима рассуждений)',
           'elapsedSeconds':round(time.monotonic()-started,2), 'transcript':c['transcript'],
           'preparedText':c['preparedText'],'title':c['title'], 'relevance':c['relevance'],
+          'projectScores':{p['title']:c['relevance'][p['id']] for p in projects if not p['id']==projects[2]['id']},
           'durationSeconds':c['durationSeconds'],'compactDurationSeconds':c['compactDurationSeconds'],
           'originalSha256':hashlib.sha256(original).hexdigest()}
 (OUT/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
