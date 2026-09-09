@@ -75,7 +75,7 @@ subprocess.run(['ffmpeg','-v','error','-i',str(compact),'-f','null','-'],check=T
 note = api('captures/' + cid + '/distribute', {'projectId':projects[0]['id']})
 assert note == api('captures/' + cid + '/distribute', {'projectId':projects[0]['id']})
 result = {'passed':True, 'speech':'Piper ru_RU-irina-medium, синтезированная речь, не живой микрофон',
-          'whisper':'small','llm':'Qwen2.5-1.5B-Instruct Q4_K_M',
+          'whisper':'small','llm':'Qwen3-4B Q4_K_M (без режима рассуждений)',
           'elapsedSeconds':round(time.monotonic()-started,2), 'transcript':c['transcript'],
           'preparedText':c['preparedText'],'title':c['title'], 'relevance':c['relevance'],
           'durationSeconds':c['durationSeconds'],'compactDurationSeconds':c['compactDurationSeconds'],

@@ -14,6 +14,11 @@ class LocalModelTextTest {
         assertFails { LocalModelText.requirePreserved("Не удалять. Без подписки. Нельзя терять текст.", "Удалять. Без подписки. Нельзя терять текст.") }
         LocalModelText.requirePreserved("старый текст удалять нельзя", "Старый текст удалять нельзя.")
     }
+    @Test fun missingFirstSentenceCannotHideInTitle() {
+        val original = "В проекте приложения нужно исправить запись голоса. Добавить кнопку паузы и проверить сохранение заметок. Старый текст удалять нельзя."
+        assertFails { ModelOutput.cleaned("""{"title":"Исправление записи голоса в проекте приложения","text":"Добавить кнопку паузы и проверить сохранение заметок. Старый текст удалять нельзя."}""", original) }
+        LocalModelText.requirePreserved(original, original.replace(". ", ".\n\n"))
+    }
     @Test fun validationRunsBeforeAcceptingCleanedText() {
         assertFails { ModelOutput.cleaned("""{"title":"План","text":"Удалить запись после встречи."}""", "Не удалять запись после встречи.") }
     }

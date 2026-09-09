@@ -35,7 +35,6 @@ fetch_model() {
   local name="$1" url="$2" expected="$3" file="$ROOT/models/$1"
   if [ -f "$file" ] && [ "$(sha256 "$file")" = "$expected" ]; then return; fi
   echo "Загрузка модели: $name"
-  # Недокачанный файл не становится рабочей моделью.
   curl --fail --location --retry 3 --connect-timeout 30 --max-time 1800 "$url" -o "$file.part"
   [ "$(sha256 "$file.part")" = "$expected" ] || { echo "Неверная контрольная сумма: $name" >&2; exit 1; }
   mv "$file.part" "$file"
@@ -46,15 +45,15 @@ mkdir -p "$ROOT/models"
 fetch_model ggml-small.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/90a64d80ea254cf67575b41a5971f972c79f7b45/ggml-small.bin \
   1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b
-fetch_model qwen2.5-1.5b-instruct-q4_k_m.gguf \
-  https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/dd26da440ef0330c47919d1ecae0966d24022222/qwen2.5-1.5b-instruct-q4_k_m.gguf \
-  6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
+fetch_model Qwen3-4B-Q4_K_M.gguf \
+  https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/a9a60d009fa7ff9606305047c2bf77ac25dbec49/Qwen3-4B-Q4_K_M.gguf \
+  7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5
 # Пути экранированы для bash, файл доступен только владельцу. Чужие модели не удаляем.
 {
   printf 'export THIRDBRAIN_WHISPER_CLI=%q\n' "$ROOT/whisper.cpp-$WHISPER_REV/build/bin/whisper-cli"
   printf 'export THIRDBRAIN_WHISPER_MODEL=%q\n' "$ROOT/models/ggml-small.bin"
   printf 'export THIRDBRAIN_LLAMA_CLI=%q\n' "$ROOT/llama.cpp-$LLAMA_REV/build/bin/llama-completion"
-  printf 'export THIRDBRAIN_LLAMA_MODEL=%q\n' "$ROOT/models/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+  printf 'export THIRDBRAIN_LLAMA_MODEL=%q\n' "$ROOT/models/Qwen3-4B-Q4_K_M.gguf"
   printf 'export THIRDBRAIN_FFMPEG=%q\n' "$(command -v ffmpeg)"
 } > "$ROOT/models.env.tmp"
 mv "$ROOT/models.env.tmp" "$ROOT/models.env"

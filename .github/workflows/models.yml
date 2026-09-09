@@ -30,6 +30,7 @@ jobs:
         with:
           path: .local-models
           key: local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
+          restore-keys: local-models-v1-${{ runner.os }}-
       - name: Подготовить настоящие веса и движки
         run: |
           set -o pipefail
