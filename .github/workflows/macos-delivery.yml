@@ -1,0 +1,70 @@
+name: Передача проверенного установщика
+on:
+  push:
+    branches: [macos-delivery]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  delivery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: 3rdBrain-macOS-arm64
+          run-id: 34325997689
+          github-token: ${{ github.token }}
+          path: installer
+      - name: Проверка целостности и транспортные части
+        run: |
+          set -euo pipefail
+          cd installer
+          echo '517bcd7c674feed346fd6a1ae48cf1557bbd4f9e541c40f1b70d5ff319a2b42a  3rdBrain-1.0.0-macOS-arm64.dmg' | sha256sum -c -
+          mkdir ../chunks
+          split -b 450m -d -a 2 3rdBrain-1.0.0-macOS-arm64.dmg ../chunks/dmg.part-
+          test "$(find ../chunks -name 'dmg.part-*' | wc -l)" = 7
+          ls -lh ../chunks
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-part-00
+          path: chunks/dmg.part-00
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-part-01
+          path: chunks/dmg.part-01
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-part-02
+          path: chunks/dmg.part-02
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-part-03
+          path: chunks/dmg.part-03
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-part-04
+          path: chunks/dmg.part-04
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-part-05
+          path: chunks/dmg.part-05
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-part-06
+          path: chunks/dmg.part-06
+          compression-level: 0
+          retention-days: 7
