@@ -35,7 +35,7 @@ compose.desktop {
             macOS {
                 bundleID = "ru.vrmn.thirdbrain"
                 dockName = "3rdBrain"
-                minimumSystemVersion = "13.0"
+                minimumSystemVersion = "13.3"
                 appCategory = "public.app-category.productivity"
                 iconFile.set(layout.projectDirectory.file("packaging/3rdBrain.icns"))
                 infoPlist {

@@ -22,6 +22,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14.5'
+          cache-read-only: false
       - name: Инструменты только сборочного Mac
         run: |
           uname -a
@@ -36,7 +37,9 @@ jobs:
           set -o pipefail
           gradle :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee macos-compile.log
       - name: Статические движки и исходные модели внутри приложения
-        run: bash desktopApp/packaging/build-native.sh
+        run: |
+          set -o pipefail
+          bash desktopApp/packaging/build-native.sh 2>&1 | tee macos-native.log
       - name: Тестовая русская речь
         run: |
           .build-python/bin/python tests/make-russian-fixture.py
@@ -53,6 +56,7 @@ jobs:
           retention-days: 7
           path: |
             macos-compile.log
+            macos-native.log
             macos-output/*.json
             macos-output/*.txt
             macos-output/*.log

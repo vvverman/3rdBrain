@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 [ "$(uname -m)" = arm64 ] || { echo 'Нужен сборочный Mac arm64'; exit 1; }
-export MACOSX_DEPLOYMENT_TARGET=13.0
+export MACOSX_DEPLOYMENT_TARGET=13.3
 ROOT="$PWD/desktopApp/build/native"
 RES="$PWD/desktopApp/bundle/common"
 mkdir -p "$ROOT" "$RES/bin" "$RES/models" "$RES/licenses"
@@ -20,9 +20,10 @@ FFMPEG=894da5ca7d742e4429ffb2af534fcda0103ef593
 build_engine() {
   local repo="$1" rev="$2" target="$3" dir="$ROOT/$1"
   checkout "ggml-org/$repo" "$rev" "$dir"
-  cmake -S "$dir" -B "$dir/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
+  cmake -S "$dir" -B "$dir/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3 \
     -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DGGML_CUDA=OFF \
-    -DGGML_METAL_EMBED_LIBRARY=ON -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF \
+    -DGGML_METAL_EMBED_LIBRARY=ON -DLLAMA_CURL=OFF -DLLAMA_OPENSSL=OFF \
+    -DLLAMA_BUILD_BORINGSSL=OFF -DLLAMA_BUILD_LIBRESSL=OFF -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_SERVER=OFF -DWHISPER_BUILD_TESTS=OFF
   cmake --build "$dir/build" -j 3 --target "$target"
   cp "$dir/build/bin/$target" "$RES/bin/"
@@ -39,7 +40,7 @@ checkout FFmpeg/FFmpeg "$FFMPEG" "$ROOT/ffmpeg"
    --enable-muxer=wav,ipod --enable-decoder=aac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,opus,vorbis,alac \
    --enable-encoder=aac,pcm_s16le --enable-parser=aac,opus,vorbis \
    --enable-filter=aresample,aformat,anull,atempo,atrim,asetpts --enable-swresample \
-   --extra-cflags=-mmacosx-version-min=13.0 --extra-ldflags=-mmacosx-version-min=13.0
+   --extra-cflags=-mmacosx-version-min=13.3 --extra-ldflags=-mmacosx-version-min=13.3
  make -j 3 ffmpeg
  cp ffmpeg "$RES/bin/ffmpeg"
  cp COPYING.LGPLv2.1 "$RES/licenses/FFmpeg-LGPL-2.1.txt"
