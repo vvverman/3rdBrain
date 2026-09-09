@@ -16,14 +16,13 @@ class DesktopRecorder(private val root: Path, private val store: FileBrainStore,
     @Volatile private var running = false
     private var input: TargetDataLine? = null
     private var worker: Thread? = null
-    @Volatile private var failure: Throwable? = null
     init { Files.createDirectories(pending) }
     private fun journals(): List<Path> = Files.list(pending).use { files -> files.filter { it.fileName.toString().endsWith(".wav") }.sorted().toList() }
     override suspend fun hasConsent(): Boolean = withContext(Dispatchers.IO) { Files.exists(consentFile) }
     override suspend fun hasPending(): Boolean = withContext(Dispatchers.IO) { currentPhase == "idle" && journals().isNotEmpty() }
     override fun phase(): String = currentPhase
 
-    override suspend fun start() = withContext(Dispatchers.IO) {
+    override suspend fun start(): Unit = withContext(Dispatchers.IO) {
         check(currentPhase == "idle") { "Запись уже идёт" }
         check(journals().isEmpty()) { "Сначала сохраните предыдущую запись" }
         var line: TargetDataLine? = null
@@ -34,14 +33,14 @@ class DesktopRecorder(private val root: Path, private val store: FileBrainStore,
                 line.open(format); break
             } catch (_: LineUnavailableException) { line?.close(); line = null }
             catch (_: IllegalArgumentException) { line?.close(); line = null }
-            catch (e: SecurityException) { line?.close(); error("Разрешите 3rdBrain доступ к микрофону в Системных настройках → Конфиденциальность и безопасность → Микрофон.") }
+            catch (_: SecurityException) { line?.close(); error("Разрешите 3rdBrain доступ к микрофону в Системных настройках → Конфиденциальность и безопасность → Микрофон.") }
         }
         val actual = line ?: error("Микрофон недоступен. Проверьте разрешение 3rdBrain и выбранное устройство ввода в настройках macOS.")
         var journal: WavJournal? = null
         try {
-            journal = WavJournal(pending.resolve("${UUID.randomUUID()}.wav"), actual.format.sampleRate.toInt())
-            val writer = journal
-            failure = null; input = actual; running = true; actual.start(); currentPhase = "recording"
+            val writer = WavJournal(pending.resolve("${UUID.randomUUID()}.wav"), actual.format.sampleRate.toInt())
+            journal = writer
+            input = actual; running = true; actual.start(); currentPhase = "recording"
             Files.writeString(consentFile, "Разрешён пользователем")
             worker = thread(name = "3rdBrain-microphone", isDaemon = true) {
                 try {
@@ -52,23 +51,19 @@ class DesktopRecorder(private val root: Path, private val store: FileBrainStore,
                         if (count > 0) writer.append(buffer, count)
                         if (System.nanoTime() - syncedAt > 1_000_000_000) { writer.flush(); syncedAt = System.nanoTime() }
                     }
-                } catch (e: Exception) { if (running) failure = e }
-                finally { running = false; actual.close(); runCatching { writer.close() }; currentPhase = "idle" }
+                } finally { running = false; actual.close(); runCatching { writer.close() }; currentPhase = "idle" }
             }
         } catch (e: Exception) { running = false; currentPhase = "idle"; actual.close(); runCatching { journal?.close() }; throw e }
     }
-    override suspend fun pause() = withContext(Dispatchers.IO) {
+    override suspend fun pause(): Unit = withContext(Dispatchers.IO) {
         check(currentPhase == "recording") { "Запись не активна" }
         currentPhase = "paused"; input?.stop(); input?.flush()
     }
-    override suspend fun resume() = withContext(Dispatchers.IO) {
+    override suspend fun resume(): Unit = withContext(Dispatchers.IO) {
         check(currentPhase == "paused") { "Запись не на паузе" }
         input?.flush(); input?.start(); currentPhase = "recording"
     }
-    override suspend fun stopAndUpload(): Capture = withContext(Dispatchers.IO) {
-        close()
-        recoverPending()
-    }
+    override suspend fun stopAndUpload(): Capture = withContext(Dispatchers.IO) { close(); recoverPending() }
     override suspend fun recoverPending(): Capture = withContext(Dispatchers.IO) {
         check(currentPhase == "idle") { "Сначала остановите микрофон" }
         val source = journals().firstOrNull() ?: error("Нет записи для восстановления")

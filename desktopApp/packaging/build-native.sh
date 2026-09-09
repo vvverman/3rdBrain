@@ -50,7 +50,7 @@ for file in "$RES/bin/"*; do
  chmod 755 "$file"
  file "$file"
  otool -L "$file"
- if otool -L "$file" | tail -n +2 | grep -vE '^\s*(/System/Library/|/usr/lib/)' | grep -q .; then
+ if otool -L "$file" | tail -n +2 | grep -vE '^[[:space:]]*(/System/Library/|/usr/lib/)' | grep -q .; then
    echo "Внешняя зависимость в $file, выпуск запрещён"; exit 1
  fi
 done
