@@ -8,7 +8,7 @@ import java.nio.channels.FileChannel
 import java.nio.file.*
 
 /** Только платформенные порты: UI, модели данных и правила остаются общими. */
-class DesktopServices(val root: Path, val resources: Path) : AutoCloseable {
+class DesktopServices(val root: Path, val resources: Path, cpuOnly: Boolean = false) : AutoCloseable {
     private val lockChannel: FileChannel
     private val lock: java.nio.channels.FileLock
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -27,7 +27,7 @@ class DesktopServices(val root: Path, val resources: Path) : AutoCloseable {
             val env = bundledEnvironment(resources)
             var processor: LocalProcessing? = null
             store = FileBrainStore(root) { processor?.status() ?: RuntimeStatus() }
-            processing = LocalProcessing(store, env).also { processor = it }
+            processing = LocalProcessing(store, env, DesktopInferenceRunner(cpuOnly)).also { processor = it }
             repository = DesktopRepository(store, processing, scope)
             recorder = DesktopRecorder(root, store) { id -> processing.enqueue(id, scope) }
             audio = DesktopAudio(store, env.getValue("THIRDBRAIN_FFMPEG"), root, scope)
@@ -35,7 +35,6 @@ class DesktopServices(val root: Path, val resources: Path) : AutoCloseable {
     }
 
     override fun close() {
-        // При выходе незавершённая запись остаётся журналом на диске для восстановления.
         recorder.close(); audio.stop(); scope.cancel()
         runBlocking { withTimeoutOrNull(5000) { scope.coroutineContext[Job]?.join() } }
         lock.release(); lockChannel.close()
