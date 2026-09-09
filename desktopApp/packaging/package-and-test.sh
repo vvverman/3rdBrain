@@ -5,6 +5,18 @@ OUT="$PWD/macos-output"
 APP="$PWD/desktopApp/build/compose/binaries/main/app/3rdBrain.app"
 mkdir -p "$OUT"
 [ -d "$APP" ]
+# Gradle копирует ресурсы как данные и может сбросить executable bit.
+# Восстанавливаем его в готовом bundle ДО подписи, не на компьютере пользователя.
+RES="$APP/Contents/app/resources"
+for name in whisper-cli llama-completion ffmpeg; do
+ test -f "$RES/bin/$name"
+ chmod 755 "$RES/bin/$name"
+ test -x "$RES/bin/$name"
+done
+{
+ ls -l "$RES/bin"
+ cat "$APP/Contents/app/3rdBrain.cfg"
+} > "$OUT/launcher-config.txt"
 # После jpackage подписываем вложенные Mach-O и затем весь bundle. Это ad-hoc, не Developer ID.
 while IFS= read -r -d '' file; do
  if /usr/bin/file -b "$file" | grep -q 'Mach-O'; then
@@ -47,7 +59,9 @@ MOUNT="$OUT/mounted"
 mkdir -p "$MOUNT"
 hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
 codesign --verify --deep --strict "$MOUNT/3rdBrain.app"
-test -f "$MOUNT/3rdBrain.app/Contents/Info.plist"
+test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/whisper-cli"
+test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/llama-completion"
+test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/ffmpeg"
 hdiutil detach "$MOUNT"
 python3 - <<'PY'
 import json, pathlib, platform
