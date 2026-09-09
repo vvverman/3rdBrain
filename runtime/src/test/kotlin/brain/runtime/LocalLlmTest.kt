@@ -14,6 +14,7 @@ class LocalLlmTest {
             val prompt = "Секретная заметка: не удалять 15 записей"
             val runner = CommandRunner { command, _ ->
                 assertFalse(command.any { it.contains(prompt) })
+                assertFalse(command.contains("--log-disable"))
                 file = Path.of(command[command.indexOf("--file") + 1])
                 assertEquals(prompt, Files.readString(file))
                 assertTrue(command.containsAll(listOf("--json-schema", "--no-escape", "--single-turn", "--reasoning", "off")))
@@ -28,6 +29,13 @@ class LocalLlmTest {
         try {
             assertFails { LocalLlm("llama", "model", root, CommandRunner { _, _ -> error("Нет памяти") }).generate("Текст", "{}", 10) }
             Files.list(root).use { assertEquals(0L, it.count()) }
+        } finally { root.toFile().deleteRecursively() }
+    }
+    @Test fun emptyAnswerIsExplicitFailure() = runBlocking {
+        val root = Files.createTempDirectory("brain-empty-answer")
+        try {
+            val error = assertFails { LocalLlm("llama", "model", root, CommandRunner { _, _ -> "\n" }).generate("Текст", "{}", 10) }
+            assertTrue(error.message.orEmpty().contains("пустой ответ"))
         } finally { root.toFile().deleteRecursively() }
     }
     @Test fun cancelledModelCleansTemporaryPrompt() = runBlocking<Unit> {
