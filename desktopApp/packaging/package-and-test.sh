@@ -35,25 +35,24 @@ done
 [ -f "$OUT/ui-ready.txt" ]
 /usr/sbin/screencapture -x "$OUT/macos-window.png" || true
 wait "$PID"
-# Формат drag-and-drop, единый файл .dmg; никакого установочного скрипта на машине пользователя.
 STAGE="$OUT/volume"
 mkdir -p "$STAGE"
 mv "$APP" "$STAGE/3rdBrain.app"
 ln -s /Applications "$STAGE/Applications"
 cp desktopApp/packaging/Установка.txt "$STAGE/Установка.txt"
-hdiutil create -volname '3rdBrain' -srcfolder "$STAGE" -ov -format UDZO "$OUT/3rdBrain-0.2.0-macOS-arm64.dmg"
-hdiutil verify "$OUT/3rdBrain-0.2.0-macOS-arm64.dmg"
-(cd "$OUT" && shasum -a 256 3rdBrain-0.2.0-macOS-arm64.dmg > SHA256SUMS.txt)
+hdiutil create -volname '3rdBrain' -srcfolder "$STAGE" -ov -format UDZO "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
+hdiutil verify "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
+(cd "$OUT" && shasum -a 256 3rdBrain-1.0.0-macOS-arm64.dmg > SHA256SUMS.txt)
 MOUNT="$OUT/mounted"
 mkdir -p "$MOUNT"
-hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$OUT/3rdBrain-0.2.0-macOS-arm64.dmg"
+hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
 codesign --verify --deep --strict "$MOUNT/3rdBrain.app"
 test -f "$MOUNT/3rdBrain.app/Contents/Info.plist"
 hdiutil detach "$MOUNT"
 python3 - <<'PY'
 import json, pathlib, platform
 out=pathlib.Path('macos-output')
-dmg=out/'3rdBrain-0.2.0-macOS-arm64.dmg'
+dmg=out/'3rdBrain-1.0.0-macOS-arm64.dmg'
 report={'passed':True,'file':dmg.name,'bytes':dmg.stat().st_size,'architecture':platform.machine(),
         'macOS':platform.mac_ver()[0],'bundledJava':True,'bundledModels':['Whisper Small','Qwen3-4B Q4_K_M'],
         'externalNetworkDeniedDuringInference':True,'developerIdSigned':False,'notarized':False,

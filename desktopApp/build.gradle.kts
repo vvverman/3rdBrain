@@ -27,7 +27,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
             packageName = "3rdBrain"
-            packageVersion = "0.2.0"
+            packageVersion = "1.0.0"
             vendor = "Vyacheslav Verman"
             description = "Локальные голосовые заметки"
             includeAllModules = true

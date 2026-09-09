@@ -1,4 +1,4 @@
-3rdBrain 0.2.0 для Mac с Apple Silicon (M1 / M2 / M3 / M4 / M5), macOS 13.3 и новее.
+3rdBrain 1.0.0 для Mac с Apple Silicon, macOS 13.3 и новее.
 
 1. Перетащите 3rdBrain в папку «Программы» (Applications).
 2. Запустите 3rdBrain из «Программ».

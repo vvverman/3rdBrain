@@ -35,7 +35,7 @@ jobs:
       - name: Все тесты Kotlin, включая нативные адаптеры
         run: |
           set -o pipefail
-          gradle :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee macos-compile.log
+          gradle -Pkotlin.compiler.execution.strategy=in-process :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee macos-compile.log
       - uses: actions/cache/restore@v4
         id: native-cache
         with:
@@ -57,7 +57,10 @@ jobs:
           mkdir -p model-test
           cp test-output/real-models/russian-with-pauses.wav model-test/russian.wav
       - name: Самодостаточный .app с Java внутри
-        run: gradle :desktopApp:createDistributable
+        run: |
+          cp desktopApp/packaging/Установка.txt desktopApp/bundle/common/Установка.txt
+          gradle -Pkotlin.compiler.execution.strategy=in-process :desktopApp:createDistributable
+          gradle --stop
       - name: Запуск без зависимостей и сети, проверка DMG
         run: bash desktopApp/packaging/package-and-test.sh
       - uses: actions/upload-artifact@v4
@@ -86,5 +89,5 @@ jobs:
           retention-days: 7
           if-no-files-found: error
           path: |
-            macos-output/3rdBrain-0.2.0-macOS-arm64.dmg
+            macos-output/3rdBrain-1.0.0-macOS-arm64.dmg
             macos-output/SHA256SUMS.txt
