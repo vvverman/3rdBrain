@@ -24,27 +24,30 @@ jobs:
         with:
           gradle-version: '8.14.5'
       - name: Системные инструменты
-        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg espeak-ng cmake
-      - uses: actions/cache@v4
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg cmake
+      - uses: actions/cache/restore@v4
+        id: models-cache
         with:
           path: .local-models
           key: local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
       - name: Подготовить настоящие веса и движки
         run: |
           set -o pipefail
+          bash -n run-web.sh 'Запустить 3rdBrain.command' scripts/setup-models.sh tests/run-real-models.sh
           bash scripts/setup-models.sh 2>&1 | tee setup-models.log
+      - uses: actions/cache/save@v4
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        with:
+          path: .local-models
+          key: local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
       - name: Сборка и модульные тесты
         run: gradle --no-build-cache :shared:jvmTest :composeApp:jvmTest :runtime:test :runtime:installDist
-      - name: Русская речь → Whisper → LLM → проект → заметка
+      - name: Тестовый голос, не зависимость приложения
         run: |
-          set -o pipefail
-          source "$THIRDBRAIN_TOOLS_HOME/models.env"
-          export THIRDBRAIN_HOME=$(mktemp -d)
-          export HF_HUB_OFFLINE=1
-          bash runtime/build/install/runtime/bin/runtime > models-runtime.log 2>&1 &
-          PID=$!
-          trap 'kill "$PID" 2>/dev/null || true' EXIT
-          python tests/real_models.py 2>&1 | tee real-models.log
+          python -m pip install piper-tts==1.4.2
+          python tests/make-russian-fixture.py
+      - name: Русский сценарий без доступа к внешней сети
+        run: sudo -E unshare --net bash tests/run-real-models.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

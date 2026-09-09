@@ -17,7 +17,11 @@ class JvmCommandRunner : CommandRunner {
         val out = dir.resolve("stdout"); val err = dir.resolve("stderr")
         var process: Process? = null
         try {
-            process = ProcessBuilder(command).redirectOutput(out.toFile()).redirectError(err.toFile()).start()
+            val builder = ProcessBuilder(command).redirectOutput(out.toFile()).redirectError(err.toFile())
+            // Не наследуем скрытые RPC/URL-настройки llama.cpp из окружения компьютера.
+            builder.environment().keys.removeIf { it.startsWith("LLAMA_ARG_") }
+            builder.environment()["HF_HUB_OFFLINE"] = "1"
+            process = builder.start()
             process.outputStream.close()
             val started = TimeSource.Monotonic.markNow()
             while (!process.waitFor(100, TimeUnit.MILLISECONDS)) {
