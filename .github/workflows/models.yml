@@ -1,0 +1,64 @@
+name: Реальные локальные модели
+on:
+  push:
+    branches: [local-models]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: models-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  real-models:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      THIRDBRAIN_TOOLS_HOME: ${{ github.workspace }}/.local-models
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.5'
+      - name: Системные инструменты
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg cmake
+      - uses: actions/cache/restore@v4
+        id: models-cache
+        with:
+          path: .local-models
+          key: local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
+          restore-keys: local-models-v1-${{ runner.os }}-
+      - name: Подготовить настоящие веса и движки
+        run: |
+          set -o pipefail
+          bash -n run-web.sh 'Запустить 3rdBrain.command' scripts/setup-models.sh tests/run-real-models.sh
+          bash scripts/setup-models.sh 2>&1 | tee setup-models.log
+      - uses: actions/cache/save@v4
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        with:
+          path: .local-models
+          key: local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
+      - name: Сборка и модульные тесты
+        run: gradle --no-build-cache :shared:jvmTest :composeApp:jvmTest :runtime:test :runtime:installDist
+      - name: Тестовый голос, не зависимость приложения
+        run: |
+          python -m pip install piper-tts==1.4.2
+          python tests/make-russian-fixture.py
+      - name: Русский сценарий без доступа к внешней сети
+        run: sudo -E unshare --net bash tests/run-real-models.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-models-${{ github.sha }}
+          path: |
+            setup-models.log
+            models-runtime.log
+            real-models.log
+            test-output/real-models
+            shared/build/test-results
+            composeApp/build/test-results
+            runtime/build/test-results
+          retention-days: 7

@@ -69,7 +69,8 @@ object ModelOutput {
         val result = json.decodeFromString<CleanedText>(unfence(value))
         require(result.text.isNotBlank() && result.text.length >= original.trim().length / 2) { "Модель слишком сильно сократила текст. Полный транскрипт сохранён" }
         require(result.text.length <= max(200, original.length * 2)) { "Модель добавила слишком много текста. Полный транскрипт сохранён" }
-        return result.copy(title = result.title.trim().take(90).ifBlank { NoteText.title(original) })
+        LocalModelText.requirePreserved(original, result.text)
+        return result.copy(title = LocalModelText.safeTitle(result.title, original))
     }
     fun relevance(value: String): Int = json.decodeFromString<Relevance>(unfence(value)).relevance.also {
         require(it in 0..4) { "Модель вернула некорректную оценку проекта" }
