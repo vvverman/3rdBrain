@@ -16,7 +16,7 @@ done < <(find "$APP/Contents" -type f -print0)
 /usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$APP/Contents/Info.plist"
 # Убираем сборочные модели: приложение должно использовать только свою копию.
 rm -rf desktopApp/bundle/common
-mv desktopApp/build/native desktopApp/build/native-not-on-path
+if [ -d desktopApp/build/native ]; then mv desktopApp/build/native desktopApp/build/native-not-on-path; fi
 TEST_HOME="$OUT/clean-home"
 mkdir -p "$TEST_HOME"
 # Минимальный PATH: нет brew, cmake, java или внешних моделей; внешняя сеть запрещена sandbox-exec.
@@ -44,7 +44,6 @@ cp desktopApp/packaging/Установка.txt "$STAGE/Установка.txt"
 hdiutil create -volname '3rdBrain' -srcfolder "$STAGE" -ov -format UDZO "$OUT/3rdBrain-0.2.0-macOS-arm64.dmg"
 hdiutil verify "$OUT/3rdBrain-0.2.0-macOS-arm64.dmg"
 (cd "$OUT" && shasum -a 256 3rdBrain-0.2.0-macOS-arm64.dmg > SHA256SUMS.txt)
-# Проверяем уже готовый образ и перенос .app из него без повреждения подписи.
 MOUNT="$OUT/mounted"
 mkdir -p "$MOUNT"
 hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$OUT/3rdBrain-0.2.0-macOS-arm64.dmg"

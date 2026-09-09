@@ -19,7 +19,7 @@ class AppStateTest {
         override suspend fun reprocess(id: String) = Capture(id, 0)
     }
     private class Recorder : RecorderGateway {
-        var starts = 0; var state = "idle"; var pending = false; var consent = true
+        var starts = 0; var state = "idle"; var pending = false; var consent = true; var emptyRecovery = false
         override suspend fun hasConsent() = consent
         override suspend fun hasPending() = pending
         override fun phase() = state
@@ -27,7 +27,7 @@ class AppStateTest {
         override suspend fun pause() { state = "paused" }
         override suspend fun resume() { state = "recording" }
         override suspend fun stopAndUpload(): Capture { state = "idle"; pending = true; error("Сервис недоступен") }
-        override suspend fun recoverPending(): Capture { pending = false; return Capture("c", 0) }
+        override suspend fun recoverPending(): Capture { pending = false; check(!emptyRecovery) { "Пустая запись" }; return Capture("c", 0) }
     }
     private class Audio : AudioGateway {
         var plays = 0; var stops = 0
@@ -59,5 +59,12 @@ class AppStateTest {
     @Test fun consentCanBeSkippedWithoutMic() = runTest {
         val r = Recorder().apply { consent = false }; val s = BrainAppState(Repository(), r, Audio())
         s.launch(); s.browseOnly(); assertFalse(s.onboarding); assertEquals(0, r.starts)
+    }
+    @Test fun emptyRecoveryDoesNotBlockNewRecording() = runTest {
+        val r = Recorder().apply { pending = true; emptyRecovery = true }
+        val s = BrainAppState(Repository(), r, Audio())
+        s.launch(); s.recoverPending()
+        assertFalse(s.pendingUpload); assertNotNull(s.error)
+        s.clearError(); assertTrue(s.startRecording())
     }
 }

@@ -36,10 +36,21 @@ jobs:
         run: |
           set -o pipefail
           gradle :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee macos-compile.log
+      - uses: actions/cache/restore@v4
+        id: native-cache
+        with:
+          path: desktopApp/bundle/common
+          key: macos-arm64-bundle-${{ hashFiles('desktopApp/packaging/build-native.sh') }}
       - name: Статические движки и исходные модели внутри приложения
+        if: steps.native-cache.outputs.cache-hit != 'true'
         run: |
           set -o pipefail
           bash desktopApp/packaging/build-native.sh 2>&1 | tee macos-native.log
+      - uses: actions/cache/save@v4
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        with:
+          path: desktopApp/bundle/common
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}
       - name: Тестовая русская речь
         run: |
           .build-python/bin/python tests/make-russian-fixture.py
@@ -77,4 +88,3 @@ jobs:
           path: |
             macos-output/3rdBrain-0.2.0-macOS-arm64.dmg
             macos-output/SHA256SUMS.txt
-            desktopApp/packaging/Установка.txt

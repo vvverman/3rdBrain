@@ -46,7 +46,7 @@ class BrainAppState(val repository: BrainRepository, val recorder: RecorderGatew
     suspend fun refresh(silent: Boolean = false) {
         try { snapshot = repository.snapshot(); connected = true }
         catch (e: CancellationException) { throw e }
-        catch (e: Exception) { connected = false; if (!silent) error = "Локальный сервис недоступен. Запустите ./run-web.sh. ${e.message.orEmpty()}" }
+        catch (e: Exception) { connected = false; if (!silent) error = "Локальное хранилище недоступно. ${e.message.orEmpty()}" }
     }
     suspend fun consentAndStart() { if (startRecording()) onboarding = false }
     suspend fun startRecording(): Boolean {
@@ -83,8 +83,10 @@ class BrainAppState(val repository: BrainRepository, val recorder: RecorderGatew
     }
     suspend fun recoverPending() {
         recordingAction {
-            val capture = recorder.recoverPending()
-            pendingUpload = recorder.hasPending(); refresh(); route = RouteStep(capture.id)
+            try {
+                val capture = recorder.recoverPending()
+                refresh(); route = RouteStep(capture.id)
+            } finally { pendingUpload = recorder.hasPending() }
         }
     }
     suspend fun tickRecordingClock() {
@@ -92,7 +94,7 @@ class BrainAppState(val repository: BrainRepository, val recorder: RecorderGatew
             val phase = recorder.phase()
             if (phase != "recording" && phase != "paused") {
                 isRecording = false; isPaused = false; pendingUpload = recorder.hasPending()
-                error = "Запись остановлена браузером. Доступную часть можно сохранить через повторную отправку"; break
+                error = "Запись прервана. Доступную часть можно восстановить во «Входящих»"; break
             }
             elapsedSeconds = (previousMillis + (mark?.elapsedNow()?.inWholeMilliseconds ?: 0)).coerceAtLeast(0) / 1000
             delay(500)
