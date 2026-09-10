@@ -43,6 +43,16 @@ data class BrainData(
         return copy(notes = notes.map { if (it.id == id) changed else it })
     }
 
+    fun pinNote(id: String, pinned: Boolean): BrainData {
+        val old = notes.firstOrNull { it.id == id } ?: error("Заметка не найдена")
+        if (old.pinned == pinned) return this
+        val order = if (pinned) {
+            (notes.filter { it.projectId == old.projectId && it.pinned }.maxOfOrNull { it.pinOrder } ?: -1) + 1
+        } else old.pinOrder
+        val changed = old.copy(pinned = pinned, pinOrder = order)
+        return copy(notes = notes.map { if (it.id == id) changed else it })
+    }
+
     fun addCapture(capture: Capture): BrainData {
         require(captures.none { it.id == capture.id }) { "Повторный идентификатор записи" }
         return copy(captures = captures + capture)
