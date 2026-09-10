@@ -20,6 +20,7 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
     var selectedProjectId by mutableStateOf<String?>(null)
     var selectedNoteId by mutableStateOf<String?>(null)
     var editingProjectId by mutableStateOf<String?>(null)
+    var editingNoteId by mutableStateOf<String?>(null)
     var choosingProject by mutableStateOf(false)
     var targetProjectId by mutableStateOf<String?>(null)
     var languagePage by mutableStateOf(false)
@@ -61,7 +62,7 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
     fun editText(value: String) { text = value; dirty = true; editRevision++ }
     fun navigate(value: Tab) {
         tab = value; choosingProject = false; targetProjectId = null
-        editingProjectId = null; creatingForCaptureId = null; languagePage = false
+        editingProjectId = null; editingNoteId = null; creatingForCaptureId = null; languagePage = false
     }
     fun beginProjectCreation(fromPicker: Boolean = false) {
         creatingForCaptureId = if (fromPicker && choosingProject) current?.id else null
@@ -171,12 +172,20 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
         repository.discard(c.id); dirty = false; refresh(); confirmDelete = false; choosingProject = false; tab = Tab.HOME
     }
     fun orderedProjects(): List<Project> = ProjectOrder.sorted(snapshot.projects, current?.relevance.orEmpty())
-    fun projectNotes(id: String) = snapshot.notes.filter { it.projectId == id }.sortedByDescending { it.updatedAt }
+    fun projectNotes(id: String) = snapshot.notes.filter { it.projectId == id }.sortedWith(
+        compareByDescending<Note> { it.pinned }.thenBy { if (it.pinned) it.pinOrder else 0 }.thenByDescending { it.updatedAt }
+    )
     fun noteSources(id: String) = snapshot.captures.filter { it.noteId == id }.sortedBy { it.appendedAt }
     fun openNote(id: String) {
-        selectedNoteId = id
+        selectedNoteId = id; editingNoteId = null
         if (!recording && playback.phase == "idle") loadedAudioId = noteSources(id).firstOrNull()?.id
     }
+    fun beginNoteEdit(id: String) { selectedNoteId = id; editingNoteId = id }
+    fun cancelNoteEdit() { editingNoteId = null }
+    suspend fun saveNote(id: String, title: String, body: String) = action {
+        repository.updateNote(id, NoteUpdate(title, body)); refresh(); editingNoteId = null
+    }
+    suspend fun pinNote(note: Note) = action { repository.pinNote(note.id, !note.pinned); refresh() }
     suspend fun requestListen(id: String) {
         if (recording) { confirmListenId = id; return }
         controls { startPlayback(id) }
