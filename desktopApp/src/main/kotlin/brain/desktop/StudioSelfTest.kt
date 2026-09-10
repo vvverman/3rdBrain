@@ -17,6 +17,11 @@ object StudioSelfTest {
         try{
             val repo=services.repository
             repo.savePreferences(Preferences(autoRecord=false,language="ru",theme="light"))
+            StudioState(repo,services.recorder,services.audio,"ru-RU").launch()
+            val starter=repo.snapshot().projects.single()
+            check(starter.title=="Твой первый проект" && starter.instruction.isEmpty())
+            StudioState(repo,services.recorder,services.audio,"en-US").launch()
+            check(repo.snapshot().projects==listOf(starter))
             val work=repo.createProject(ProjectDraft("Приложение"))
             val passwords=repo.createProject(ProjectDraft("Пароли"))
             val food=repo.createProject(ProjectDraft("Кулинария"))
@@ -51,7 +56,7 @@ object StudioSelfTest {
                 put("realAudioProcessing",true);put("savedSpeed",first.savedSpeed);put("savedSeconds",first.durationSeconds)
                 put("originalDeletedAfterVerification",true);put("titleOnlyRanking",true);put("appendPreservesOldText",true)
                 put("discardDeletesAudio",true);put("preferencesPersisted",true);put("transcript",first.transcript);put("tidiedText",tidy.textToSave)
-                put("physicalMicrophoneTested",false)
+                put("physicalMicrophoneTested",false);put("starterProjectCreatedOnce",true)
             }
             Files.writeString(output.resolve("self-test.json"),Json{prettyPrint=true}.encodeToString(JsonObject.serializer(),report))
         }finally{services.close()}

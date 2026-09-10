@@ -45,6 +45,7 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
     private var recordedMillis = 0L
     private var mark: TimeMark? = null
     private var autoRouteFor: String? = null
+    private var creatingForCaptureId: String? = null
     private val editLock = Mutex()
     private var actionScope: CoroutineScope? = null
 
@@ -58,7 +59,18 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
     fun tr(key: String) = Copy.text(language, key)
     fun editTitle(value: String) { title = value; dirty = true; editRevision++ }
     fun editText(value: String) { text = value; dirty = true; editRevision++ }
-    fun navigate(value: Tab) { tab = value; choosingProject = false; targetProjectId = null; editingProjectId = null; languagePage = false }
+    fun navigate(value: Tab) {
+        tab = value; choosingProject = false; targetProjectId = null
+        editingProjectId = null; creatingForCaptureId = null; languagePage = false
+    }
+    fun beginProjectCreation(fromPicker: Boolean = false) {
+        creatingForCaptureId = if (fromPicker && choosingProject) current?.id else null
+        editingProjectId = "new"
+    }
+    fun cancelProjectEdit() {
+        editingProjectId = null; creatingForCaptureId = null
+        // Выбор проекта остаётся открыт; текущие текст и аудио не меняются.
+    }
 
     suspend fun launch() {
         if (started) return
@@ -66,6 +78,10 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
         action {
             preferences = repository.preferences()
             refresh()
+            if (snapshot.projects.isEmpty()) {
+                repository.createProject(ProjectDraft(tr("firstProject")))
+                refresh()
+            }
             pending = recorder.hasPending()
             initialized = true
         }
@@ -186,7 +202,17 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
         else if (playback.phase == "paused") { audio.stop(); playback = AudioTelemetry() }
     }
     suspend fun createProject(title: String, instruction: String) = action {
-        repository.createProject(ProjectDraft(title, instruction = instruction)); refresh(); editingProjectId = null
+        val originCapture = creatingForCaptureId
+        val project = repository.createProject(ProjectDraft(title, instruction = instruction))
+        refresh()
+        // После создания из выбора сразу предлагаем новую/существующую заметку
+        // в созданном проекте. Саму заметку пока не сохраняем.
+        if (editingProjectId == "new" && creatingForCaptureId == originCapture) {
+            if (originCapture != null && choosingProject && current?.id == originCapture) {
+                targetProjectId = project.id
+            }
+            editingProjectId = null; creatingForCaptureId = null
+        }
     }
     suspend fun updateProject(id: String, title: String, instruction: String) = action {
         val p = snapshot.projects.first { it.id == id }
@@ -209,6 +235,10 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
         catch (e: Exception) { error = e.message?.takeIf { Copy.has(it) } ?: "actionFailed"; false } finally { busy = false }
     }
     private suspend fun controls(block: suspend () -> Unit): Boolean {
+        val owner = actionScope
+        return if (owner == null) performControls(block) else owner.async { performControls(block) }.await()
+    }
+    private suspend fun performControls(block: suspend () -> Unit): Boolean {
         if (controlBusy) return false
         controlBusy = true
         return try { block(); true } catch (e: CancellationException) { throw e }

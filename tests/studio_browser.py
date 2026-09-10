@@ -72,18 +72,22 @@ with sync_playwright() as pw:
         player();assert page.locator('#webApp').bounding_box()['width']==430
         assert 'Входящие' not in page.locator('body').aria_snapshot()
         screen('home-light');checks.append('главная без входящих, постоянные панели')
-        tab('Проекты');button('Новый проект')
-        field('Название проекта','Приложение');field('Что сюда складывать','Запись голоса и сохранение заметок');button('Сохранить')
-        work=wait(lambda:next((p for p in api('snapshot')['projects'] if p['title']=='Приложение'),None),'проект создан через UI')
-        checks.append('создание проекта через интерфейс')
+        projects=api('snapshot')['projects'];assert len(projects)==1,projects
+        work=projects[0];assert work['title']=='Твой первый проект' and work['instruction']==''
+        page.reload(wait_until='networkidle')
+        page.get_by_role('button',name='Запись',exact=True).wait_for(state='visible')
+        assert api('snapshot')['projects']==projects
+        checks.append('первый проект без настройки, повторный запуск без дубликатов')
         tab('Главная');button('Запись');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','запись')
         wait(lambda:page.evaluate('thirdBrainPlatform.level()')>0,'реальный аудиосигнал')
+        assert page.get_by_role('button',name='Стоп',exact=True).count()==0
+        page.get_by_role('button',name='Отправить',exact=True).wait_for(state='visible')
         screen('recording');tab('Проекты');player();assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
         tab('Настройки');player();assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
         tab('Главная');button('Пауза');assert page.evaluate('thirdBrainPlatform.phase()')=='paused'
         assert page.evaluate('thirdBrainPlatform.level()')==0
         button('Продолжить');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','продолжение')
-        page.wait_for_timeout(1000);button('Стоп');first=ready()
+        page.wait_for_timeout(1000);button('Отправить');first=ready()
         checks.append('реальный микрофон Chrome, уровень, навигация, пауза и стоп')
         assert first['simulated'] and not first['llmApplied'] and first['audioFinalized'] and 'фигня' in first['transcript']
         assert first['savedSpeed']==1.5 and first['durationSeconds']>0
@@ -92,11 +96,11 @@ with sync_playwright() as pw:
         button('Привести в порядок');wait(lambda:current()['llmApplied'],'ручное оформление')
         assert 'фигня' not in current()['preparedText'] and 'нельзя' in current()['preparedText']
         screen('note-light');checks.append('буквальный тестовый текст, ручная правка и оформление')
-        button('Отправить в проект');player();click('button',re.compile('^Приложение'));button('Новая заметка')
+        button('Отправить в проект');player();page.get_by_role('button',name='Создать проект',exact=True).wait_for(state='visible');screen('choose-project');click('button',re.compile('^Твой первый проект'));button('Новая заметка')
         wait(lambda:current() is None,'новая заметка сохранена')
         note=api('snapshot')['notes'][0];old=note['body'];assert note['projectId']==work['id']
         checks.append('выбор проекта и новая заметка через UI')
-        tab('Проекты');click('button',re.compile('^Приложение'));click('button',re.compile('^Проверка приложения'))
+        tab('Проекты');click('button',re.compile('^Твой первый проект'));click('button',re.compile('^Проверка приложения'))
         player();button('Воспроизвести');wait(lambda:page.evaluate('thirdBrainPlatform.audioState().phase')=='playing','воспроизведение')
         button('Пауза');assert page.evaluate('thirdBrainPlatform.audioState().phase')=='paused'
         button('Продолжить');button('Стоп');checks.append('плеер: воспроизведение, пауза, продолжение, стоп')
@@ -108,12 +112,26 @@ with sync_playwright() as pw:
         assert page.evaluate('thirdBrainPlatform.phase()')=='idle';second=ready()
         if page.evaluate('thirdBrainPlatform.audioState().phase')!='idle':button('Стоп')
         tab('Главная');page.get_by_role('button',name='Отправить в проект',exact=True).wait_for(state='visible')
-        button('Отправить в проект');click('button',re.compile('^Приложение'));click('button',re.compile('^Проверка приложения'))
+        button('Отправить в проект');click('button',re.compile('^Твой первый проект'));click('button',re.compile('^Проверка приложения'))
         wait(lambda:current() is None,'дополнение');snapshot=api('snapshot')
         assert snapshot['notes'][0]['body'].startswith(old+'\n\n')
         assert len([c for c in snapshot['captures'] if c['noteId']==note['id']])==2
         checks.append('подтверждение конфликта, отмена без остановки, добавление второго источника')
-        button('Попробовать без микрофона');third=ready();button('Отменить заметку');player();button('Удалить')
+        button('Попробовать без микрофона');third=ready()
+        button('Отправить в проект');button('Создать проект');player()
+        field('Название проекта','Можно отменить');button('Назад')
+        page.get_by_role('button',name='Создать проект',exact=True).wait_for(state='visible')
+        assert current()['id']==third['id'] and len(api('snapshot')['projects'])==1
+        button('Создать проект');field('Название проекта','Рабочие идеи')
+        field('Что сюда складывать','Идеи интерфейсов');button('Сохранить')
+        page.get_by_role('button',name='Новая заметка',exact=True).wait_for(state='visible');player()
+        created=next(p for p in api('snapshot')['projects'] if p['title']=='Рабочие идеи')
+        assert current()['id']==third['id'] and len(api('snapshot')['notes'])==1
+        screen('new-project-destination');button('Новая заметка')
+        wait(lambda:current() is None,'сохранение в только что созданный проект')
+        assert any(n['projectId']==created['id'] for n in api('snapshot')['notes'])
+        checks.append('создание проекта в выборе, возврат без потерь и сохранение в новый проект')
+        button('Попробовать без микрофона');ready();button('Отменить заметку');player();button('Удалить')
         wait(lambda:current() is None,'удаление текущего');checks.append('создание тестового сигнала и удаление')
         for language in ['ru','en','es','fr','de','uk','be','kk']:
             p=api('preferences');p.update(language=language,theme='dark' if language in ['uk','be','kk'] else 'light',autoRecord=False)

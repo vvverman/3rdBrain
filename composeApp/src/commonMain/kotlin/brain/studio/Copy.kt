@@ -3,6 +3,9 @@ package brain.studio
 /** Восемь полных наборов строк. Автоязык интерфейса не задаёт язык распознавания речи. */
 object Copy {
     private val rows = """
+firstProject|Твой первый проект|Your first project|Tu primer proyecto|Ton premier projet|Dein erstes Projekt|Твій перший проєкт|Твой першы праект|Алғашқы жобаңыз
+createProject|Создать проект|Create project|Crear proyecto|Créer un projet|Projekt erstellen|Створити проєкт|Стварыць праект|Жоба жасау
+submitRecording|Отправить|Send|Enviar|Envoyer|Senden|Надіслати|Адправіць|Жіберу
 home|Главная|Home|Inicio|Accueil|Start|Головна|Галоўная|Басты
 projects|Проекты|Projects|Proyectos|Projets|Projekte|Проєкти|Праекты|Жобалар
 settings|Настройки|Settings|Ajustes|Réglages|Einstellungen|Налаштування|Налады|Баптаулар

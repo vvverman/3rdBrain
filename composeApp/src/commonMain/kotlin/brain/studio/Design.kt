@@ -43,7 +43,7 @@ private val Paper = Color(0xFFF2F1F5)
     ), content = content)
 }
 
-enum class Glyph { RECORD, PLAY, PAUSE, STOP, HOME, FOLDER, SETTINGS, BACK, NEXT, PLUS, DELETE, MAGIC, MORE, PIN, UP, DOWN, CHECK }
+enum class Glyph { RECORD, PLAY, PAUSE, STOP, SEND, HOME, FOLDER, SETTINGS, BACK, NEXT, PLUS, DELETE, MAGIC, MORE, PIN, UP, DOWN, CHECK }
 
 /** Авторская геометрия. Ни Material Icons, ни SF Symbols. */
 @Composable fun Symbol(glyph: Glyph, modifier: Modifier = Modifier.size(22.dp), color: Color = MaterialTheme.colorScheme.onSurface) {
@@ -57,6 +57,7 @@ enum class Glyph { RECORD, PLAY, PAUSE, STOP, HOME, FOLDER, SETTINGS, BACK, NEXT
                 Glyph.RECORD -> { drawCircle(color, 7f, Offset(12f,12f)); drawCircle(color.copy(alpha=.3f),10f,Offset(12f,12f),style=stroke) }
                 Glyph.PLAY -> { val p=Path(); p.moveTo(8f,5f);p.lineTo(19f,12f);p.lineTo(8f,19f);p.close();drawPath(p,color) }
                 Glyph.PAUSE -> { drawRoundRect(color,Offset(7f,5f),Size(3f,14f),CornerRadius(1.2f));drawRoundRect(color,Offset(14f,5f),Size(3f,14f),CornerRadius(1.2f)) }
+                Glyph.SEND -> { path(5f,11f,12f,4f,19f,11f); line(12f,4f,12f,21f) }
                 Glyph.STOP -> drawRoundRect(color,Offset(6f,6f),Size(12f,12f),CornerRadius(2f))
                 Glyph.HOME -> { path(3f,11f,12f,3f,21f,11f);path(6f,10f,6f,21f,10f,21f,10f,15f,14f,15f,14f,21f,18f,21f,18f,10f) }
                 Glyph.FOLDER -> { val p=Path();p.moveTo(3f,7f);p.lineTo(3f,20f);p.lineTo(21f,20f);p.lineTo(21f,8f);p.lineTo(12f,8f);p.lineTo(9f,4f);p.lineTo(3f,4f);p.close();drawPath(p,color,style=stroke) }

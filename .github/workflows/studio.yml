@@ -81,5 +81,5 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           path: |
-            studio-output/3rdBrain-Test-1.1.0-macOS-arm64.dmg
+            studio-output/3rdBrain-Test-1.1.1-macOS-arm64.dmg
             studio-output/SHA256SUMS.txt

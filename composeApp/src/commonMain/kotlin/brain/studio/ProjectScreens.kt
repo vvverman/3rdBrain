@@ -67,7 +67,7 @@ internal fun ProjectsScreen(s: StudioState) {
             }
         }
         else -> Column {
-            Heading(s.tr("projects")) { IconAction(s.tr("newProject"), Glyph.PLUS, { s.editingProjectId = "new" }) }
+            Heading(s.tr("projects")) { IconAction(s.tr("newProject"), Glyph.PLUS, { s.beginProjectCreation() }) }
             val projects = ProjectOrder.sorted(s.snapshot.projects)
             if (projects.isEmpty()) Text(s.tr("noProjects"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
@@ -93,8 +93,11 @@ internal fun DestinationScreen(s: StudioState) {
     Column(Modifier.fillMaxSize()) {
         Heading(if (project == null) s.tr("chooseProject") else project.title, { if (project == null) s.choosingProject = false else s.targetProjectId = null }, s.tr("back"))
         if (project == null) {
-            if (s.snapshot.projects.isEmpty()) Text(s.tr("createInProjects"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+            // Действие доступно сразу, даже при длинном списке. Нижний плеер остаётся видимым.
+            Action(s.tr("createProject"), { s.beginProjectCreation(fromPicker = true) }, glyph = Glyph.PLUS,
+                enabled = !s.busy, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(16.dp))
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
                 items(s.orderedProjects(), key = { it.id }) { p -> ProjectLine(p, { s.targetProjectId = p.id }) }
             }
         } else {
@@ -114,7 +117,7 @@ internal fun ProjectEditor(s: StudioState) {
     var title by remember(s.editingProjectId) { mutableStateOf(project?.title.orEmpty()) }
     var instruction by remember(s.editingProjectId) { mutableStateOf(project?.instruction.orEmpty()) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 20.dp)) {
-        Heading(if (project == null) s.tr("newProject") else s.tr("edit"), { s.editingProjectId = null }, s.tr("back"))
+        Heading(if (project == null) s.tr("newProject") else s.tr("edit"), s::cancelProjectEdit, s.tr("back"))
         Editor(title, { title = it }, s.tr("projectName"), Modifier.fillMaxWidth(), title = true)
         Spacer(Modifier.height(24.dp))
         Editor(instruction, { instruction = it }, s.tr("instruction"), Modifier.fillMaxWidth().heightIn(min = 130.dp))

@@ -12,7 +12,7 @@ class StudioStateTest {
         override val simulated=true
         var prefs=Preferences(autoRecord=false)
         var data=BrainData(projects=listOf(Project("p","Приложение")))
-        var failSave=false;var failDiscard=false
+        var failSave=false;var failDiscard=false;var failCreate=false
         var snapshotGate: CompletableDeferred<Unit>? = null
         override suspend fun snapshot(): AppSnapshot {
             snapshotGate?.await()
@@ -20,7 +20,7 @@ class StudioStateTest {
         }
         override suspend fun preferences()=prefs
         override suspend fun savePreferences(value:Preferences){prefs=value.validated()}
-        override suspend fun createProject(draft:ProjectDraft):Project{data=data.addProject("p2",0,draft);return data.projects.last()}
+        override suspend fun createProject(draft:ProjectDraft):Project{check(!failCreate);data=data.addProject("p2",0,draft);return data.projects.last()}
         override suspend fun updateProject(id:String,update:ProjectUpdate):Project{data=data.updateProject(id,update);return data.projects.first{it.id==id}}
         override suspend fun pinProject(id:String,pinned:Boolean):Project{data=data.pinProject(id,pinned);return data.projects.first{it.id==id}}
         override suspend fun orderPins(ids:List<String>){data=data.orderPins(ids)}
@@ -107,4 +107,90 @@ class StudioStateTest {
         assertFalse(state.busy)
         state.detachActionScope(backgroundScope)
     }
+    @Test fun emptyInstallationGetsOneStarterProjectAndKeepsItOnRelaunch() = runTest {
+        val repo = Repo().apply { data = BrainData() }
+        val first = StudioState(repo, Recorder(repo), Audio(), "ru-RU")
+        first.launch()
+        val starter = repo.data.projects.single()
+        assertEquals("Твой первый проект", starter.title)
+        assertEquals("", starter.instruction)
+        val second = StudioState(repo, Recorder(repo), Audio(), "en-US")
+        second.launch()
+        assertEquals(listOf(starter), second.snapshot.projects)
+    }
+    @Test fun existingProjectsAreNotReplacedOrRenamed() = runTest {
+        val repo = Repo(); val before = repo.data.projects
+        StudioState(repo, Recorder(repo), Audio(), "fr-FR").launch()
+        assertEquals(before, repo.data.projects)
+    }
+    @Test fun starterUsesSelectedInterfaceLanguage() = runTest {
+        val repo = Repo().apply { data = BrainData(); prefs = Preferences(autoRecord = false, language = "de") }
+        StudioState(repo, Recorder(repo), Audio(), "ru-RU").launch()
+        assertEquals("Dein erstes Projekt", repo.data.projects.single().title)
+    }
+    @Test fun starterCanReceiveFirstNoteWithoutProjectSetup() = runTest {
+        val repo = Repo().apply { data = BrainData() }
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        val project = state.snapshot.projects.single()
+        state.demo(); repo.ready(); state.refresh(); state.send()
+        assertTrue(state.choosingProject)
+        state.distribute(project.id)
+        assertNull(state.current)
+        assertEquals(project.id, repo.data.notes.single().projectId)
+    }
+    @Test fun projectCreatedFromPickerKeepsRecordingAndSelectsDestination() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        state.editText("Мой изменённый текст"); state.send()
+        val id = state.current!!.id
+        state.beginProjectCreation(fromPicker = true)
+        state.createProject("Новый проект", "")
+        assertNull(state.editingProjectId)
+        assertTrue(state.choosingProject)
+        assertEquals("p2", state.targetProjectId)
+        assertEquals(id, state.current!!.id)
+        assertEquals("Мой изменённый текст", state.text)
+        assertTrue(repo.data.notes.isEmpty())
+        state.distribute("p2")
+        assertEquals("Мой изменённый текст", repo.data.notes.single().body)
+    }
+    @Test fun cancellingProjectCreationReturnsToPickerWithoutDiscardingNote() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.send()
+        val before = state.current
+        state.beginProjectCreation(fromPicker = true); state.cancelProjectEdit()
+        assertTrue(state.choosingProject); assertNull(state.editingProjectId)
+        assertNull(state.targetProjectId); assertEquals(before, state.current)
+        assertEquals(1, repo.data.projects.size)
+    }
+    @Test fun failedProjectCreationDoesNotCloseEditorOrSaveNote() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.send()
+        state.beginProjectCreation(fromPicker = true); repo.failCreate = true
+        state.createProject("Новый проект", "")
+        assertEquals("new", state.editingProjectId); assertNull(state.targetProjectId)
+        assertNotNull(state.current); assertTrue(repo.data.notes.isEmpty())
+        assertEquals(1, repo.data.projects.size)
+    }
+    @Test fun navigatingAwayDuringProjectCreationDoesNotOpenDestination() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.send()
+        state.beginProjectCreation(fromPicker = true)
+        val gate = CompletableDeferred<Unit>(); repo.snapshotGate = gate
+        val save = launch { state.createProject("Новый проект", "") }; runCurrent()
+        state.navigate(Tab.SETTINGS)
+        gate.complete(Unit); save.join()
+        assertEquals(Tab.SETTINGS, state.tab)
+        assertFalse(state.choosingProject); assertNull(state.targetProjectId)
+        assertNotNull(state.current); assertEquals(2, repo.data.projects.size)
+    }
+    @Test fun submitPausedRecordingStartsProcessingButDoesNotSaveToProject() = runTest {
+        val repo = Repo(); val mic = Recorder(repo)
+        val state = StudioState(repo, mic, Audio()); state.launch()
+        state.startRecording(); state.pauseRecording(); state.stopRecording()
+        assertEquals("idle", mic.status)
+        assertEquals(CaptureStatus.QUEUED, state.current!!.status)
+        assertTrue(repo.data.notes.isEmpty())
+    }
+
 }

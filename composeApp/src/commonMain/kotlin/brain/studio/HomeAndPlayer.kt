@@ -74,8 +74,8 @@ import kotlinx.coroutines.launch
         Row(verticalAlignment=Alignment.CenterVertically){
             when{
                 s.controlBusy->ProcessingRing(Modifier.size(46.dp))
-                s.recordPhase=="recording"->IconAction(s.tr("pause"),Glyph.PAUSE,{scope.launch{s.pauseRecording()}},true)
-                s.recordPhase=="paused"->IconAction(s.tr("resume"),Glyph.RECORD,{scope.launch{s.resumeRecording()}},true)
+                s.recordPhase=="recording"->IconAction(s.tr("pause"),Glyph.PAUSE,{scope.launch{s.pauseRecording()}})
+                s.recordPhase=="paused"->IconAction(s.tr("resume"),Glyph.RECORD,{scope.launch{s.resumeRecording()}})
                 s.playback.phase=="playing"->IconAction(s.tr("pause"),Glyph.PAUSE,{scope.launch{s.pausePlayback()}},true)
                 s.playback.phase=="paused"->IconAction(s.tr("resume"),Glyph.PLAY,{scope.launch{s.resumePlayback()}},true)
                 loaded?.audioFinalized==true->IconAction(s.tr("play"),Glyph.PLAY,{scope.launch{s.play()}},true)
@@ -94,7 +94,7 @@ import kotlinx.coroutines.launch
             }
             Spacer(Modifier.width(10.dp))
             when{
-                s.recording->IconAction(s.tr("stop"),Glyph.STOP,{scope.launch{s.stopRecording()}})
+                s.recording&&!s.controlBusy->Action(s.tr("submitRecording"),{scope.launch{s.stopRecording()}},primary=true,glyph=Glyph.SEND)
                 s.playback.phase!="idle"->IconAction(s.tr("stop"),Glyph.STOP,s::stopPlayback)
                 s.current==null&&loaded!=null&&!s.pending->IconAction(s.tr("record"),Glyph.RECORD,{scope.launch{s.startRecording()}})
             }
