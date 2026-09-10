@@ -1,0 +1,85 @@
+name: 3rdBrain Test — интерфейс без нейросетей
+on:
+  push:
+    branches: [studio-test]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: studio-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - run: git archive --format=zip --output=source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-source-${{ github.sha }}
+          path: source.zip
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          architecture: aarch64
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.5'
+          cache-read-only: false
+      - name: Ресурсы дизайна, проверка алфавитов
+        run: |
+          command -v ffmpeg || brew install ffmpeg
+          python3 -m venv .studio-python
+          .studio-python/bin/pip install pillow==11.3.0 fonttools==4.59.2
+          .studio-python/bin/python scripts/prepare-fonts.py
+          .studio-python/bin/python desktopApp/packaging/make-icon.py
+      - name: Сборка и тесты общего кода и macOS
+        run: |
+          set -o pipefail
+          gradle -Pkotlin.compiler.execution.strategy=in-process --continue :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee studio-compile.log
+      - uses: actions/cache/restore@v4
+        id: audio-cache
+        with:
+          path: desktopApp/bundle-test/common
+          key: studio-ffmpeg-arm64-${{ hashFiles('desktopApp/packaging/build-test-native.sh') }}
+      - name: Только аудиодвижок, без моделей
+        if: steps.audio-cache.outputs.cache-hit != 'true'
+        run: bash desktopApp/packaging/build-test-native.sh
+      - uses: actions/cache/save@v4
+        if: steps.audio-cache.outputs.cache-hit != 'true'
+        with:
+          path: desktopApp/bundle-test/common
+          key: ${{ steps.audio-cache.outputs.cache-primary-key }}
+      - name: Автономное приложение
+        run: |
+          gradle -PdemoBuild=true -Pkotlin.compiler.execution.strategy=in-process :desktopApp:createDistributable
+          gradle --stop
+      - name: Самопроверка без сети, экраны, DMG
+        run: bash desktopApp/packaging/package-test.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-verification-${{ github.sha }}
+          path: |
+            studio-compile.log
+            studio-output/*.log
+            studio-output/*.json
+            studio-output/screens
+            studio-output/self-test/*.json
+            studio-output/self-test/*.log
+            shared/build/test-results
+            composeApp/build/test-results
+            runtime/build/test-results
+            desktopApp/build/test-results
+            desktopApp/build/compose/logs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 3rdBrain-Test-macOS-arm64
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            studio-output/3rdBrain-Test-1.1.0-macOS-arm64.dmg
+            studio-output/SHA256SUMS.txt

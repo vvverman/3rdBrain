@@ -1,6 +1,7 @@
 package brain.domain
 
 import brain.model.*
+import brain.studio.AudioTelemetry
 
 interface BrainRepository {
     suspend fun snapshot(): AppSnapshot
@@ -13,20 +14,21 @@ interface BrainRepository {
     suspend fun updateNote(id: String, update: NoteUpdate): Note
     suspend fun reprocess(id: String): Capture
 }
-
 interface RecorderGateway {
     suspend fun hasConsent(): Boolean
     suspend fun hasPending(): Boolean
     fun phase(): String
+    fun level(): Float = 0f
     suspend fun start()
     suspend fun pause()
     suspend fun resume()
-    /** Сначала сохраняет источник; не удаляет его при ошибке передачи в хранилище. */
     suspend fun stopAndUpload(): Capture
     suspend fun recoverPending(): Capture
 }
-
 interface AudioGateway {
     suspend fun playCapture(captureId: String, compact: Boolean = false, fromSeconds: Double = 0.0, rate: Double = 1.0)
+    suspend fun pause() {}
+    suspend fun resume() {}
+    fun telemetry(): AudioTelemetry = AudioTelemetry()
     fun stop()
 }
