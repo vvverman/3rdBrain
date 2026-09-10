@@ -12,7 +12,7 @@ interface BrainRepository {
     suspend fun updateCaptureDraft(id: String, update: CaptureDraftUpdate): Capture
     suspend fun distribute(id: String, request: DistributionRequest): Note
     suspend fun updateNote(id: String, update: NoteUpdate): Note
-    suspend fun pinNote(id: String, pinned: Boolean): Note
+    suspend fun pinNote(id: String, pinned: Boolean): Note = error("Закрепление заметок не поддержано этим адаптером")
     suspend fun reprocess(id: String): Capture
 }
 interface RecorderGateway {
