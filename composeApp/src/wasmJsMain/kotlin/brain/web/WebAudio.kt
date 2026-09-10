@@ -2,16 +2,23 @@
 package brain.web
 
 import brain.domain.AudioGateway
+import brain.studio.AudioTelemetry
 import kotlinx.coroutines.await
+import kotlinx.serialization.json.Json
 import kotlin.js.*
 
-class WebAudioGateway(private val baseUrl: String) : AudioGateway {
-    override suspend fun playCapture(captureId: String, compact: Boolean, fromSeconds: Double, rate: Double) {
-        val url = "$baseUrl/api/captures/$captureId/audio?compact=$compact"
-        val result = play(url.toJsString(), fromSeconds, rate).await().toString()
-        if (result.startsWith("ERROR:")) error(result.removePrefix("ERROR:"))
+class WebAudioGateway(private val baseUrl:String):AudioGateway {
+    override suspend fun playCapture(captureId:String,compact:Boolean,fromSeconds:Double,rate:Double){
+        checked(play("$baseUrl/api/captures/$captureId/audio?compact=$compact".toJsString(),fromSeconds,rate).await())
     }
-    override fun stop() { stopAudio() }
+    override suspend fun pause(){checked(pauseAudio())}
+    override suspend fun resume(){checked(resumeAudio().await())}
+    override fun telemetry():AudioTelemetry=Json.decodeFromString(audioState().toString())
+    override fun stop(){stopAudio()}
+    private fun checked(value:JsString){val text=value.toString();check(!text.startsWith("ERROR:")){"audioFailed"}}
 }
-private fun play(url: JsString, from: Double, rate: Double): Promise<JsString> = js("globalThis.thirdBrainPlatform.play(url, from, rate)")
-private fun stopAudio(): Unit = js("globalThis.thirdBrainPlatform.stopAudio()")
+private fun play(url:JsString,from:Double,rate:Double):Promise<JsString> = js("globalThis.thirdBrainPlatform.play(url, from, rate)")
+private fun stopAudio():Unit = js("globalThis.thirdBrainPlatform.stopAudio()")
+private fun pauseAudio():JsString = js("globalThis.thirdBrainPlatform.pauseAudio()")
+private fun resumeAudio():Promise<JsString> = js("globalThis.thirdBrainPlatform.resumeAudio()")
+private fun audioState():JsString = js("JSON.stringify(globalThis.thirdBrainPlatform.audioState())")

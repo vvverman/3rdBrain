@@ -1,6 +1,7 @@
 package brain.runtime
 
 import brain.model.*
+import brain.studio.*
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.serialization.kotlinx.json.json
@@ -16,90 +17,85 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.readRemaining
 import kotlinx.io.readByteArray
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 import java.nio.file.Path
 
-private class LocalAccessDenied : IllegalArgumentException("Доступ разрешён только локальному приложению")
-private const val MAX_AUDIO = 64L * 1024 * 1024
-private val localOrigins = setOf("http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:8787", "http://127.0.0.1:8787")
-private val LocalAccess = createApplicationPlugin("LocalAccess") {
-    onCall { call ->
-        val host = call.request.headers[HttpHeaders.Host]?.lowercase()?.substringBefore(':')
-        if (host != null && host !in setOf("localhost", "127.0.0.1")) throw LocalAccessDenied()
-        val origin = call.request.headers[HttpHeaders.Origin]
-        if (origin != null && origin !in localOrigins) throw LocalAccessDenied()
-        if (call.request.headers["Sec-Fetch-Site"] == "cross-site" && origin == null) throw LocalAccessDenied()
-        if (call.request.httpMethod in setOf(HttpMethod.Post, HttpMethod.Put, HttpMethod.Delete)
-            && call.request.headers["X-3rdBrain-Client"] != "web") throw LocalAccessDenied()
-        val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-        require(length == null || length <= MAX_AUDIO + 65536) { "Запрос слишком большой" }
-        call.response.headers.append("X-Content-Type-Options", "nosniff")
-        call.response.headers.append("Cache-Control", "no-store")
+private class LocalAccessDenied:IllegalArgumentException("Local access only")
+private const val MAX_AUDIO=64L*1024*1024
+private val localOrigins=setOf("http://localhost:8080","http://127.0.0.1:8080","http://localhost:8787","http://127.0.0.1:8787")
+private val LocalAccess=createApplicationPlugin("LocalAccess"){
+    onCall{call->
+        val host=call.request.headers[HttpHeaders.Host]?.lowercase()?.substringBefore(':')
+        if(host!=null&&host !in setOf("localhost","127.0.0.1"))throw LocalAccessDenied()
+        val origin=call.request.headers[HttpHeaders.Origin]
+        if(origin!=null&&origin !in localOrigins)throw LocalAccessDenied()
+        if(call.request.headers["Sec-Fetch-Site"]=="cross-site"&&origin==null)throw LocalAccessDenied()
+        if(call.request.httpMethod in setOf(HttpMethod.Post,HttpMethod.Put,HttpMethod.Delete)&&call.request.headers["X-3rdBrain-Client"]!="web")throw LocalAccessDenied()
+        val length=call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull();require(length==null||length<=MAX_AUDIO+65536)
+        call.response.headers.append("X-Content-Type-Options","nosniff");call.response.headers.append("Cache-Control","no-store")
     }
 }
-
-fun main() {
-    val root = Path.of(System.getenv("THIRDBRAIN_HOME") ?: Path.of(System.getProperty("user.home"), ".3rdbrain").toString())
-    lateinit var processing: LocalProcessing
-    val store = FileBrainStore(root) { processing.status() }
-    processing = LocalProcessing(store)
-    val webRoot = Path.of(System.getenv("THIRDBRAIN_WEB_ROOT") ?: "composeApp/build/dist/wasmJs/productionExecutable")
-    println("3rdBrain: откройте http://127.0.0.1:8787 . Данные: $root")
-    embeddedServer(Netty, host = "127.0.0.1", port = 8787) { brainModule(store, processing, webRoot) }.start(wait = true)
+fun main(){
+    val root=Path.of(System.getenv("THIRDBRAIN_HOME")?:Path.of(System.getProperty("user.home"),".3rdbrain-studio-test").toString())
+    val simulated=System.getenv("THIRDBRAIN_DEMO_AI")=="1"
+    val env=System.getenv();val ffmpeg=env["THIRDBRAIN_FFMPEG"]?:"ffmpeg"
+    val store=FileBrainStore(root,runtimeStatus={RuntimeStatus(localOnly=true,simulated=simulated)},singleCurrent=true)
+    val legacy=LocalProcessing(store,env)
+    val prefs=PreferenceStore(root)
+    val intelligence:Intelligence=if(simulated)DemoIntelligence()else LocalStudioIntelligence(env,root)
+    val processor=StudioProcessor(store,prefs,intelligence,ffmpeg)
+    val webRoot=Path.of(System.getenv("THIRDBRAIN_WEB_ROOT")?:"composeApp/build/dist/wasmJs/productionExecutable")
+    println("3rdBrain: http://127.0.0.1:8787 ; simulated AI=$simulated")
+    embeddedServer(Netty,host="127.0.0.1",port=8787){brainModule(store,legacy,webRoot,StudioDiskRepository(store,processor,prefs,this))}.start(wait=true)
 }
-
-fun Application.brainModule(store: FileBrainStore, processing: LocalProcessing, webRoot: Path? = null) {
-    install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
-    install(StatusPages) {
-        exception<LocalAccessDenied> { call, cause -> call.respond(HttpStatusCode.Forbidden, ApiError(cause.message!!)) }
-        exception<Throwable> { call, cause ->
-            if (cause is CancellationException) throw cause
-            val expected = cause is IllegalArgumentException || cause is IllegalStateException
-            call.respond(if (expected) HttpStatusCode.BadRequest else HttpStatusCode.InternalServerError,
-                ApiError(if (expected) cause.message ?: "Некорректный запрос" else "Ошибка локального сервиса. Сохранённые источники не удалены"))
+fun Application.brainModule(store:FileBrainStore,processing:LocalProcessing,webRoot:Path?=null,studio:StudioRepository?=null){
+    install(ContentNegotiation){json(Json{ignoreUnknownKeys=true;encodeDefaults=true})}
+    install(StatusPages){
+        exception<LocalAccessDenied>{call,_->call.respond(HttpStatusCode.Forbidden,ApiError("Local access only"))}
+        exception<Throwable>{call,cause->
+            if(cause is CancellationException)throw cause
+            val expected=cause is IllegalArgumentException||cause is IllegalStateException
+            call.respond(if(expected)HttpStatusCode.BadRequest else HttpStatusCode.InternalServerError,ApiError(if(expected)cause.message?:"Invalid request" else "Local service error"))
         }
     }
     install(LocalAccess)
-    install(CORS) {
-        allowHost("localhost:8080"); allowHost("127.0.0.1:8080")
-        allowHost("localhost:8787"); allowHost("127.0.0.1:8787")
-        allowMethod(HttpMethod.Put); allowMethod(HttpMethod.Post)
-        allowHeader(HttpHeaders.ContentType); allowHeader("X-3rdBrain-Client"); allowHeader("X-Capture-Id")
-        allowNonSimpleContentTypes = true
+    install(CORS){
+        allowHost("localhost:8080");allowHost("127.0.0.1:8080");allowHost("localhost:8787");allowHost("127.0.0.1:8787")
+        allowMethod(HttpMethod.Put);allowMethod(HttpMethod.Post);allowMethod(HttpMethod.Delete)
+        allowHeader(HttpHeaders.ContentType);allowHeader("X-3rdBrain-Client");allowHeader("X-Capture-Id");allowNonSimpleContentTypes=true
     }
-    routing {
-        get("/api/health") { call.respond(mapOf("ok" to true)) }
-        get("/api/snapshot") { call.respond(store.snapshot()) }
-        post("/api/projects") { call.respond(store.createProject(call.receive<ProjectDraft>())) }
-        put("/api/projects/{id}") { call.respond(store.updateProject(call.parameters["id"]!!, call.receive<ProjectUpdate>())) }
-        post("/api/projects/{id}/pin") { call.respond(store.pinProject(call.parameters["id"]!!, call.receive<PinRequest>().pinned)) }
-        post("/api/pins/order") { call.respond(store.orderPins(call.receive<PinOrderRequest>().ids)) }
-        post("/api/captures/audio") {
-            var fileName = "capture.webm"; var bytes: ByteArray? = null
-            val multipart = call.receiveMultipart(formFieldLimit = MAX_AUDIO)
-            multipart.forEachPart { part ->
-                try {
-                    if (part is PartData.FileItem) {
-                        require(bytes == null) { "Передайте одну запись" }
-                        fileName = part.originalFileName ?: fileName
-                        bytes = part.provider().readRemaining(MAX_AUDIO + 1).readByteArray()
-                        require(bytes!!.size <= MAX_AUDIO) { "Допустима запись до 64 МБ" }
-                    }
-                } finally { part.dispose() }
+    routing{
+        get("/api/health"){call.respond(mapOf("ok" to true))}
+        get("/api/snapshot"){call.respond(store.snapshot())}
+        get("/api/preferences"){call.respond(studio?.preferences()?:Preferences())}
+        put("/api/preferences"){check(studio!=null);studio.savePreferences(call.receive<Preferences>());call.respond(studio.preferences())}
+        post("/api/demo"){check(studio!=null);call.respond(HttpStatusCode.Created,studio.createDemo())}
+        post("/api/projects"){call.respond(store.createProject(call.receive<ProjectDraft>()))}
+        put("/api/projects/{id}"){call.respond(store.updateProject(call.parameters["id"]!!,call.receive<ProjectUpdate>()))}
+        post("/api/projects/{id}/pin"){call.respond(store.pinProject(call.parameters["id"]!!,call.receive<PinRequest>().pinned))}
+        post("/api/pins/order"){call.respond(store.orderPins(call.receive<PinOrderRequest>().ids))}
+        post("/api/captures/audio"){
+            var fileName="capture.webm";var bytes:ByteArray?=null
+            call.receiveMultipart(formFieldLimit=MAX_AUDIO).forEachPart{part->
+                try{if(part is PartData.FileItem){require(bytes==null);fileName=part.originalFileName?:fileName
+                    bytes=part.provider().readRemaining(MAX_AUDIO+1).readByteArray();require(bytes!!.size<=MAX_AUDIO)}}finally{part.dispose()}
             }
-            val capture = store.createCapture(fileName, bytes ?: error("Аудиофайл не передан"), call.request.headers["X-Capture-Id"])
-            if (capture.status == CaptureStatus.QUEUED) processing.enqueue(capture.id, this@brainModule)
-            call.respond(HttpStatusCode.Created, store.capture(capture.id)!!)
+            val c=store.createCapture(fileName,bytes?:error("No audio"),call.request.headers["X-Capture-Id"])
+            if(c.status==CaptureStatus.QUEUED){if(studio!=null)studio.reprocess(c.id)else processing.enqueue(c.id,this@brainModule)}
+            call.respond(HttpStatusCode.Created,store.capture(c.id)!!)
         }
-        get("/api/captures/{id}/audio") {
-            val capture = store.capture(call.parameters["id"]!!) ?: error("Запись не найдена")
-            call.respondFile(store.resolveAudio(capture, call.request.queryParameters["compact"] == "true").toFile())
+        get("/api/captures/{id}/audio"){
+            val c=store.capture(call.parameters["id"]!!)?:error("No source")
+            call.respondFile(store.resolveAudio(c,call.request.queryParameters["compact"]=="true").toFile())
         }
-        put("/api/notes/{id}") { call.respond(store.updateNote(call.parameters["id"]!!, call.receive<NoteUpdate>())) }
-        put("/api/captures/{id}/draft") { call.respond(store.updateDraft(call.parameters["id"]!!, call.receive<CaptureDraftUpdate>())) }
-        post("/api/captures/{id}/process") { call.respond(processing.enqueue(call.parameters["id"]!!, this@brainModule)) }
-        post("/api/captures/{id}/distribute") { call.respond(store.distribute(call.parameters["id"]!!, call.receive<DistributionRequest>())) }
-        if (webRoot != null) staticFiles("/", webRoot.toFile())
+        put("/api/notes/{id}"){call.respond(store.updateNote(call.parameters["id"]!!,call.receive<NoteUpdate>()))}
+        put("/api/captures/{id}/draft"){call.respond(store.updateDraft(call.parameters["id"]!!,call.receive<CaptureDraftUpdate>()))}
+        post("/api/captures/{id}/process"){val id=call.parameters["id"]!!;call.respond(studio?.reprocess(id)?:processing.enqueue(id,this@brainModule))}
+        post("/api/captures/{id}/tidy"){check(studio!=null);call.respond(studio.tidy(call.parameters["id"]!!))}
+        post("/api/captures/{id}/rank"){check(studio!=null);call.respond(studio.rank(call.parameters["id"]!!))}
+        delete("/api/captures/{id}"){check(studio!=null);studio.discard(call.parameters["id"]!!);call.respond(mapOf("ok" to true))}
+        post("/api/captures/{id}/distribute"){call.respond(store.distribute(call.parameters["id"]!!,call.receive<DistributionRequest>()))}
+        if(webRoot!=null)staticFiles("/",webRoot.toFile())
     }
 }
