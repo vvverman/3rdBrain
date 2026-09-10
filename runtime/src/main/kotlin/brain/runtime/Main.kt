@@ -90,6 +90,7 @@ fun Application.brainModule(store:FileBrainStore,processing:LocalProcessing,webR
             call.respondFile(store.resolveAudio(c,call.request.queryParameters["compact"]=="true").toFile())
         }
         put("/api/notes/{id}"){call.respond(store.updateNote(call.parameters["id"]!!,call.receive<NoteUpdate>()))}
+        post("/api/notes/{id}/pin"){call.respond(store.pinNote(call.parameters["id"]!!,call.receive<PinRequest>().pinned))}
         put("/api/captures/{id}/draft"){call.respond(store.updateDraft(call.parameters["id"]!!,call.receive<CaptureDraftUpdate>()))}
         post("/api/captures/{id}/process"){val id=call.parameters["id"]!!;call.respond(studio?.reprocess(id)?:processing.enqueue(id,this@brainModule))}
         post("/api/captures/{id}/tidy"){check(studio!=null);call.respond(studio.tidy(call.parameters["id"]!!))}
