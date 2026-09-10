@@ -3,7 +3,7 @@ package brain.model
 import kotlinx.serialization.Serializable
 
 @Serializable data class Project(val id: String, val title: String, val description: String = "", val instruction: String = "", val pinned: Boolean = false, val pinOrder: Int = 0, val createdAt: Long = 0)
-@Serializable data class Note(val id: String, val projectId: String, val title: String, val body: String, val createdAt: Long, val updatedAt: Long)
+@Serializable data class Note(val id: String, val projectId: String, val title: String, val body: String, val createdAt: Long, val updatedAt: Long, val pinned: Boolean = false, val pinOrder: Int = 0)
 @Serializable enum class CaptureStatus {
     RECORDING, QUEUED, TRANSCRIBING, COMPACTING, POLISHING, READY, NEEDS_MODEL, FAILED;
     val isWorking: Boolean get() = this in setOf(RECORDING, QUEUED, TRANSCRIBING, COMPACTING, POLISHING)
