@@ -30,6 +30,7 @@ class WebBrainRepository(private val baseUrl:String):StudioRepository {
     override suspend fun updateCaptureDraft(id:String,update:CaptureDraftUpdate):Capture=client.put("$baseUrl/api/captures/$id/draft"){contentType(ContentType.Application.Json);setBody(update)}.body()
     override suspend fun distribute(id:String,request:DistributionRequest):Note=client.post("$baseUrl/api/captures/$id/distribute"){contentType(ContentType.Application.Json);setBody(request)}.body()
     override suspend fun updateNote(id:String,update:NoteUpdate):Note=client.put("$baseUrl/api/notes/$id"){contentType(ContentType.Application.Json);setBody(update)}.body()
+    override suspend fun pinNote(id:String,pinned:Boolean):Note=client.post("$baseUrl/api/notes/$id/pin"){contentType(ContentType.Application.Json);setBody(PinRequest(pinned))}.body()
     override suspend fun reprocess(id:String):Capture=client.post("$baseUrl/api/captures/$id/process").body()
     override suspend fun tidy(id:String):Capture=client.post("$baseUrl/api/captures/$id/tidy").body()
     override suspend fun rank(id:String):Capture=client.post("$baseUrl/api/captures/$id/rank").body()
