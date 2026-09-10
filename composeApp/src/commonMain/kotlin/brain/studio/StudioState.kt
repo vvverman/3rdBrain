@@ -46,6 +46,12 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
     private var mark: TimeMark? = null
     private var autoRouteFor: String? = null
     private val editLock = Mutex()
+    private var actionScope: CoroutineScope? = null
+
+    // Операция принадлежит приложению, а не экрану, с которого её запустили.
+    // Навигация не должна отменять публикацию уже сохранённой заметки.
+    fun attachActionScope(scope: CoroutineScope) { actionScope = scope }
+    fun detachActionScope(scope: CoroutineScope) { if (actionScope === scope) actionScope = null }
     val recording get() = recordPhase == "recording" || recordPhase == "paused"
     val working get() = current?.status?.isWorking == true
     val loadedAudio get() = snapshot.captures.firstOrNull { it.id == loadedAudioId }
@@ -141,12 +147,12 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
     suspend fun distribute(projectId: String, noteId: String? = null) = action {
         flush(); val c = current ?: return@action
         repository.distribute(c.id, DistributionRequest(projectId, noteId, title))
-        dirty = false; choosingProject = false; targetProjectId = null; tab = Tab.HOME; refresh()
+        dirty = false; refresh(); choosingProject = false; targetProjectId = null; tab = Tab.HOME
     }
     suspend fun discard() = action {
         val c = current ?: return@action
         if (loadedAudioId == c.id) { audio.stop(); loadedAudioId = null; playback = AudioTelemetry() }
-        repository.discard(c.id); dirty = false; confirmDelete = false; choosingProject = false; tab = Tab.HOME; refresh()
+        repository.discard(c.id); dirty = false; refresh(); confirmDelete = false; choosingProject = false; tab = Tab.HOME
     }
     fun orderedProjects(): List<Project> = ProjectOrder.sorted(snapshot.projects, current?.relevance.orEmpty())
     fun projectNotes(id: String) = snapshot.notes.filter { it.projectId == id }.sortedByDescending { it.updatedAt }
@@ -180,11 +186,11 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
         else if (playback.phase == "paused") { audio.stop(); playback = AudioTelemetry() }
     }
     suspend fun createProject(title: String, instruction: String) = action {
-        repository.createProject(ProjectDraft(title, instruction = instruction)); editingProjectId = null; refresh()
+        repository.createProject(ProjectDraft(title, instruction = instruction)); refresh(); editingProjectId = null
     }
     suspend fun updateProject(id: String, title: String, instruction: String) = action {
         val p = snapshot.projects.first { it.id == id }
-        repository.updateProject(id, ProjectUpdate(title, p.description, instruction)); editingProjectId = null; refresh()
+        repository.updateProject(id, ProjectUpdate(title, p.description, instruction)); refresh(); editingProjectId = null
     }
     suspend fun pin(p: Project) = action { repository.pinProject(p.id, !p.pinned); refresh() }
     suspend fun movePin(p: Project, delta: Int) = action {
@@ -193,6 +199,10 @@ class StudioState(val repository: StudioRepository, val recorder: RecorderGatewa
         if (next in ids.indices) { ids.removeAt(old); ids.add(next, p.id); repository.orderPins(ids); refresh() }
     }
     private suspend fun action(block: suspend () -> Unit): Boolean {
+        val owner = actionScope
+        return if (owner == null) performAction(block) else owner.async { performAction(block) }.await()
+    }
+    private suspend fun performAction(block: suspend () -> Unit): Boolean {
         if (busy) return false
         busy = true
         return try { block(); true } catch (e: CancellationException) { throw e }

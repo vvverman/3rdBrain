@@ -14,6 +14,10 @@ import kotlinx.coroutines.*
 @Composable
 fun StudioApp(state: StudioState) {
     val scope = rememberCoroutineScope()
+    DisposableEffect(state, scope) {
+        state.attachActionScope(scope)
+        onDispose { state.detachActionScope(scope) }
+    }
     LaunchedEffect(Unit) { state.launch() }
     LaunchedEffect(Unit) { state.poll() }
     LaunchedEffect(state.editRevision) {

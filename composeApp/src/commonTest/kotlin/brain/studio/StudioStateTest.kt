@@ -2,16 +2,22 @@ package brain.studio
 
 import brain.domain.*
 import brain.model.*
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.*
+import kotlinx.coroutines.test.*
 import kotlin.test.*
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class StudioStateTest {
     private class Repo:StudioRepository {
         override val simulated=true
         var prefs=Preferences(autoRecord=false)
         var data=BrainData(projects=listOf(Project("p","Приложение")))
         var failSave=false;var failDiscard=false
-        override suspend fun snapshot()=AppSnapshot(data.projects,data.notes,data.captures,RuntimeStatus(simulated=true))
+        var snapshotGate: CompletableDeferred<Unit>? = null
+        override suspend fun snapshot(): AppSnapshot {
+            snapshotGate?.await()
+            return AppSnapshot(data.projects,data.notes,data.captures,RuntimeStatus(simulated=true))
+        }
         override suspend fun preferences()=prefs
         override suspend fun savePreferences(value:Preferences){prefs=value.validated()}
         override suspend fun createProject(draft:ProjectDraft):Project{data=data.addProject("p2",0,draft);return data.projects.last()}
@@ -61,4 +67,44 @@ class StudioStateTest {
     @Test fun savedSessionClearsHome()=runTest{val r=Repo();r.createDemo();r.ready();val s=StudioState(r,Recorder(r),Audio());s.launch();s.distribute("p");assertNull(s.current);assertEquals("",s.text);assertEquals("p",r.data.notes.single().projectId)}
     @Test fun failedDiscardKeepsSession()=runTest{val r=Repo();r.createDemo();r.ready();r.failDiscard=true;val s=StudioState(r,Recorder(r),Audio());s.launch();s.discard();assertNotNull(s.current)}
     @Test fun localizationIsCompleteAndExplicit() {assertTrue(Copy.keys().size>60);for(key in Copy.keys())for(lang in Languages.codes)assertTrue(Copy.text(lang,key).isNotBlank())}
+
+    @Test fun distributionPublishesSnapshotBeforeClosingPicker() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        state.choosingProject = true; state.targetProjectId = "p"
+        val gate = CompletableDeferred<Unit>(); repo.snapshotGate = gate
+        val save = launch { state.distribute("p") }; runCurrent()
+        assertEquals(1, repo.data.notes.size)
+        assertTrue(state.choosingProject)
+        assertFalse(save.isCompleted)
+        gate.complete(Unit); save.join()
+        assertNull(state.current); assertFalse(state.choosingProject)
+        assertEquals(1, state.projectNotes("p").size)
+    }
+    @Test fun projectEditorClosesOnlyAfterSnapshotRefresh() = runTest {
+        val repo = Repo(); val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        state.editingProjectId = "new"
+        val gate = CompletableDeferred<Unit>(); repo.snapshotGate = gate
+        val save = launch { state.createProject("Новый проект", "") }; runCurrent()
+        assertEquals("new", state.editingProjectId)
+        gate.complete(Unit); save.join()
+        assertNull(state.editingProjectId)
+        assertTrue(state.snapshot.projects.any { it.title == "Новый проект" })
+    }
+    @Test fun leavingScreenDoesNotCancelCommittedSaveRefresh() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        state.attachActionScope(backgroundScope)
+        val screen = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val gate = CompletableDeferred<Unit>(); repo.snapshotGate = gate
+        val caller = screen.launch { state.distribute("p") }; runCurrent()
+        assertEquals(1, repo.data.notes.size)
+        screen.cancel(); runCurrent()
+        assertTrue(caller.isCancelled)
+        gate.complete(Unit); runCurrent()
+        assertNull(state.current)
+        assertEquals(1, state.projectNotes("p").size)
+        assertFalse(state.busy)
+        state.detachActionScope(backgroundScope)
+    }
 }
