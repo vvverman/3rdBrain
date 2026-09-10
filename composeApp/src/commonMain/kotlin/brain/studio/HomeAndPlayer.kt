@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
@@ -47,15 +48,22 @@ import kotlinx.coroutines.launch
                 Action(s.tr("send"),{scope.launch{s.send()}},primary=true,modifier=Modifier.weight(1f),enabled=s.text.isNotBlank()&&!s.busy&&s.current?.audioFinalized==true)
             }
         }
-        else->Box(Modifier.fillMaxSize()){
-            BotanicalMark(Modifier.align(Alignment.BottomEnd).size(230.dp,300.dp).padding(bottom=76.dp))
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top=30.dp)){
-                Text(s.tr("emptyTitle"),style=MaterialTheme.typography.displayMedium,letterSpacing=(-1.8).sp)
-                Spacer(Modifier.height(18.dp));Text(s.tr("emptyBody"),style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant,modifier=Modifier.widthIn(max=220.dp))
-                Spacer(Modifier.height(220.dp))
-                if(s.pending){Text(s.tr("recoveryNotice"),style=MaterialTheme.typography.bodySmall);Action(s.tr("recover"),{scope.launch{s.recover()}},primary=true,modifier=Modifier.fillMaxWidth())}
-                else if(s.repository.simulated)QuietAction(s.tr("demoButton"),{scope.launch{s.demo()}})
-                Spacer(Modifier.height(16.dp))
+        else -> Column(Modifier.fillMaxSize().padding(top=26.dp,bottom=12.dp)) {
+            Text(s.tr("emptyTitle"),style=MaterialTheme.typography.displayMedium,letterSpacing=(-1.8).sp)
+            Spacer(Modifier.height(16.dp))
+            Text(s.tr("emptyBody"),style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant,
+                modifier=Modifier.widthIn(max=250.dp))
+            // Рисунок занимает только оставшееся место. Даже на низком окне он
+            // не рисуется поверх текста, восстановления и кнопки демонстрации.
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds(),contentAlignment=Alignment.CenterEnd) {
+                BotanicalMark(Modifier.width(220.dp).fillMaxHeight().padding(top=18.dp,bottom=16.dp))
+            }
+            if(s.pending) {
+                Text(s.tr("recoveryNotice"),style=MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                Action(s.tr("recover"),{scope.launch{s.recover()}},primary=true,modifier=Modifier.fillMaxWidth())
+            } else if(s.repository.simulated) {
+                QuietAction(s.tr("demoButton"),{scope.launch{s.demo()}})
             }
         }
     }
