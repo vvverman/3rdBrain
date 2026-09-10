@@ -106,9 +106,12 @@ with sync_playwright() as pw:
         screen('note-editor');button('Сохранить')
         edited=wait(lambda:(n if (n:=api('snapshot')['notes'][0])['title']=='Отредактированная заметка' and n['body']=='Текст исправлен после сохранения.' else None),'редактирование заметки')
         assert edited['pinned'];old=edited['body'];checks.append('закрепление и встроенный редактор сохранённой заметки')
+        # Сохранение оставляет пользователя в заметке; возвращаемся к списку и
+        # снова открываем её — это отдельно проверяет отображение нового названия.
+        button('Назад');click('button',re.compile('^Отредактированная заметка'))
         player();button('Воспроизвести');wait(lambda:page.evaluate('thirdBrainPlatform.audioState().phase')=='playing','воспроизведение')
         button('Пауза');assert page.evaluate('thirdBrainPlatform.audioState().phase')=='paused'
-        button('Продолжить');button('Стоп');checks.append('плеер: воспроизведение, пауза, продолжение, стоп')
+        button('Продолжить');button('Стоп');button('Назад');checks.append('плеер: воспроизведение, пауза, продолжение, стоп')
         tab('Главная');button('Запись');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','вторая запись')
         tab('Проекты');click('button',re.compile('^Отредактированная заметка'))
         page.get_by_role('button',name='Остановить и слушать',exact=True).wait_for(state='visible')
