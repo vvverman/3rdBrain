@@ -114,9 +114,12 @@ with sync_playwright() as pw:
         button('Продолжить');button('Стоп');button('Назад');checks.append('плеер: воспроизведение, пауза, продолжение, стоп')
         tab('Главная');button('Запись');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','вторая запись')
         tab('Проекты');click('button',re.compile('^Отредактированная заметка'))
+        # Заголовок заметки можно менять, но аудиоисточник остаётся отдельной сущностью
+        # со своим исходным заголовком. Нажимаем именно его для запуска прослушивания.
+        click('button',re.compile('^Проверка приложения'))
         page.get_by_role('button',name='Остановить и слушать',exact=True).wait_for(state='visible')
         player();button('Отмена');assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
-        click('button',re.compile('^Отредактированная заметка'));button('Остановить и слушать')
+        click('button',re.compile('^Проверка приложения'));button('Остановить и слушать')
         assert page.evaluate('thirdBrainPlatform.phase()')=='idle';second=ready()
         if page.evaluate('thirdBrainPlatform.audioState().phase')!='idle':button('Стоп')
         tab('Главная');page.get_by_role('button',name='Отправить в проект',exact=True).wait_for(state='visible')
