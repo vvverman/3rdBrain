@@ -32,18 +32,18 @@ mkdir -p "$STAGE"
 mv "$APP" "$STAGE/3rdBrain Test.app"
 ln -s /Applications "$STAGE/Applications"
 cp docs/TEST_BUILD.md "$STAGE/Прочитать.md"
-hdiutil create -volname '3rdBrain Test' -srcfolder "$STAGE" -ov -format UDZO "$OUT/3rdBrain-Test-1.1.1-macOS-arm64.dmg"
-hdiutil verify "$OUT/3rdBrain-Test-1.1.1-macOS-arm64.dmg"
+hdiutil create -volname '3rdBrain Test' -srcfolder "$STAGE" -ov -format UDZO "$OUT/3rdBrain-Test-1.1.2-macOS-arm64.dmg"
+hdiutil verify "$OUT/3rdBrain-Test-1.1.2-macOS-arm64.dmg"
 mkdir -p "$OUT/mounted"
-hdiutil attach -nobrowse -readonly -mountpoint "$OUT/mounted" "$OUT/3rdBrain-Test-1.1.1-macOS-arm64.dmg"
+hdiutil attach -nobrowse -readonly -mountpoint "$OUT/mounted" "$OUT/3rdBrain-Test-1.1.2-macOS-arm64.dmg"
 codesign --verify --deep --strict "$OUT/mounted/3rdBrain Test.app"
 test -x "$OUT/mounted/3rdBrain Test.app/Contents/app/resources/bin/ffmpeg"
 test ! -d "$OUT/mounted/3rdBrain Test.app/Contents/app/resources/models"
 hdiutil detach "$OUT/mounted"
-(cd "$OUT" && shasum -a 256 3rdBrain-Test-1.1.1-macOS-arm64.dmg > SHA256SUMS.txt)
+(cd "$OUT" && shasum -a 256 3rdBrain-Test-1.1.2-macOS-arm64.dmg > SHA256SUMS.txt)
 python3 - <<'PY'
 import pathlib,json,platform
-p=pathlib.Path('studio-output');dmg=p/'3rdBrain-Test-1.1.1-macOS-arm64.dmg'
+p=pathlib.Path('studio-output');dmg=p/'3rdBrain-Test-1.1.2-macOS-arm64.dmg'
 r={'passed':True,'file':dmg.name,'bytes':dmg.stat().st_size,'arch':platform.machine(),'macOS':platform.mac_ver()[0],
  'simulatedAI':True,'modelFiles':0,'bundledJava':True,'notarized':False,'physicalMicrophoneTested':False,
  'selfTest':json.loads((p/'self-test/self-test.json').read_text())}
