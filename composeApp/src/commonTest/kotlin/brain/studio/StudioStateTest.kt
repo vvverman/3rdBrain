@@ -27,6 +27,7 @@ class StudioStateTest {
         override suspend fun updateCaptureDraft(id:String,update:CaptureDraftUpdate):Capture{check(!failSave);data=data.updateDraft(id,update);return data.captures.first{it.id==id}}
         override suspend fun distribute(id:String,request:DistributionRequest):Note{val(next,note)=data.distribute(id,request,"n",0);data=next;return note}
         override suspend fun updateNote(id:String,update:NoteUpdate):Note{data=data.updateNote(id,update,0);return data.notes.first{it.id==id}}
+        override suspend fun pinNote(id:String,pinned:Boolean):Note{data=data.pinNote(id,pinned);return data.notes.first{it.id==id}}
         override suspend fun reprocess(id:String)=data.captures.first{it.id==id}
         override suspend fun tidy(id:String):Capture{val c=data.captures.first{it.id==id};return updateCaptureDraft(id,CaptureDraftUpdate(c.title,DemoIntelligence(0).tidy(c.textToSave,"ru")))}
         override suspend fun rank(id:String)=data.captures.first{it.id==id}
@@ -191,6 +192,31 @@ class StudioStateTest {
         assertEquals("idle", mic.status)
         assertEquals(CaptureStatus.QUEUED, state.current!!.status)
         assertTrue(repo.data.notes.isEmpty())
+    }
+
+    @Test fun savedNoteCanBeEditedLater() = runTest {
+        val repo = Repo().apply {
+            data = BrainData(projects=listOf(Project("p","Приложение")), notes=listOf(Note("n","p","Старое название","Старый текст",1,1)))
+        }
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.openNote("n"); state.beginNoteEdit("n")
+        state.saveNote("n", "Новое название", "Исправленный текст")
+        assertNull(state.editingNoteId)
+        assertEquals("Новое название", state.snapshot.notes.single().title)
+        assertEquals("Исправленный текст", state.snapshot.notes.single().body)
+    }
+
+    @Test fun pinnedNotesAreShownFirstAndCanBeUnpinned() = runTest {
+        val repo = Repo().apply {
+            data = BrainData(projects=listOf(Project("p","Приложение")), notes=listOf(
+                Note("new","p","Свежая","текст",1,100),
+                Note("pin","p","Закреплённая","текст",1,1,pinned=true,pinOrder=0)
+            ))
+        }
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        assertEquals(listOf("pin","new"), state.projectNotes("p").map { it.id })
+        state.pinNote(repo.data.notes.first { it.id=="pin" })
+        assertFalse(repo.data.notes.first { it.id=="pin" }.pinned)
+        assertEquals("new", state.projectNotes("p").first().id)
     }
 
 }
