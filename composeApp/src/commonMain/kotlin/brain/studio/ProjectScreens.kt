@@ -38,8 +38,14 @@ internal fun ProjectsScreen(s: StudioState) {
     val note = s.snapshot.notes.firstOrNull { it.id == s.selectedNoteId }
     val scope = rememberCoroutineScope()
     when {
+        note != null && s.editingNoteId == note.id -> NoteEditorScreen(s, note)
         note != null -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 22.dp)) {
-            Heading(s.tr("notes"), { s.selectedNoteId = null }, s.tr("back"))
+            Heading(s.tr("notes"), { s.selectedNoteId = null; s.editingNoteId = null }, s.tr("back")) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconAction(s.tr(if (note.pinned) "unpin" else "pin"), Glyph.PIN, { scope.launch { s.pinNote(note) } }, filled = note.pinned, modifier = Modifier.size(34.dp))
+                    IconAction(s.tr("edit"), Glyph.EDIT, { s.beginNoteEdit(note.id) }, modifier = Modifier.size(34.dp))
+                }
+            }
             Text(note.title, style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(22.dp))
             androidx.compose.foundation.text.selection.SelectionContainer { Text(note.body, style = MaterialTheme.typography.bodyLarge) }
@@ -80,9 +86,37 @@ internal fun ProjectsScreen(s: StudioState) {
 @Composable
 private fun NoteLine(note: Note, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surface).clickable(role = Role.Button, onClick = onClick).padding(18.dp)) {
-        Text(note.title, style = MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(note.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            if (note.pinned) { Spacer(Modifier.width(10.dp)); Symbol(Glyph.PIN, Modifier.size(16.dp), MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
         Spacer(Modifier.height(6.dp))
         Text(note.body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun NoteEditorScreen(s: StudioState, note: Note) {
+    val scope = rememberCoroutineScope()
+    var title by remember(note.id) { mutableStateOf(note.title) }
+    var body by remember(note.id) { mutableStateOf(note.body) }
+    Column(Modifier.fillMaxSize().padding(bottom = 14.dp)) {
+        Heading(s.tr("edit"), s::cancelNoteEdit, s.tr("back"))
+        Text(s.tr("untitled"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(8.dp))
+        Editor(title, { title = it }, s.tr("untitled"), Modifier.fillMaxWidth(), title = true)
+        Spacer(Modifier.height(24.dp))
+        Text(s.tr("body"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(MaterialTheme.colorScheme.surface).padding(18.dp).verticalScroll(rememberScrollState())) {
+            Editor(body, { body = it }, s.tr("body"), Modifier.fillMaxWidth().heightIn(min = 220.dp))
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            QuietAction(s.tr("cancel"), s::cancelNoteEdit)
+            Spacer(Modifier.width(12.dp))
+            Action(s.tr("save"), { scope.launch { s.saveNote(note.id, title, body) } }, primary = true, enabled = !s.busy, modifier = Modifier.weight(1f))
+        }
     }
 }
 
