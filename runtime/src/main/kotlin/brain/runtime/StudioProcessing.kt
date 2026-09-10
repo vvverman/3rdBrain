@@ -122,6 +122,7 @@ class StudioDiskRepository(private val store: FileBrainStore, private val proces
     override suspend fun updateCaptureDraft(id: String, update: CaptureDraftUpdate) = withContext(Dispatchers.IO) { store.updateDraft(id, update) }
     override suspend fun distribute(id: String, request: DistributionRequest) = withContext(Dispatchers.IO) { store.distribute(id, request) }
     override suspend fun updateNote(id: String, update: NoteUpdate) = withContext(Dispatchers.IO) { store.updateNote(id, update) }
+    override suspend fun pinNote(id: String, pinned: Boolean) = withContext(Dispatchers.IO) { store.pinNote(id, pinned) }
     override suspend fun reprocess(id: String) = withContext(Dispatchers.IO) { processor.enqueue(id, scope) }
     override suspend fun tidy(id: String) = withContext(Dispatchers.IO) { processor.tidy(id) }
     override suspend fun rank(id: String) = withContext(Dispatchers.IO) { processor.rank(id) }
