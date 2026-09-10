@@ -20,7 +20,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
             packageName = if(demoBuild) "3rdBrain Test" else "3rdBrain"
-            packageVersion = "1.1.1"
+            packageVersion = "1.1.2"
             vendor = "Vyacheslav Verman"
             description = if(demoBuild) "Тест интерфейса, ИИ имитируется" else "Локальные голосовые заметки"
             includeAllModules = true
