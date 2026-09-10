@@ -8,8 +8,8 @@ import androidx.compose.foundation.shape.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.*
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import brain.model.*
@@ -27,7 +27,7 @@ import kotlinx.coroutines.*
             Column(Modifier.widthIn(max=430.dp).fillMaxWidth().fillMaxHeight().background(c.background).padding(horizontal=24.dp)) {
                 Row(Modifier.fillMaxWidth().padding(top=20.dp,bottom=8.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("3rdBrain",style=MaterialTheme.typography.titleMedium,letterSpacing=(-.4).sp,modifier=Modifier.weight(1f))
-                    if(state.repository.simulated) Text(state.tr("demoBadge"),style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
+                    if(state.repository.simulated) Text(state.tr("demoBadge"),style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant,maxLines=1)
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when {
@@ -132,9 +132,7 @@ import kotlinx.coroutines.*
                         Text(clock(s.playback.position.toLong()),style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
                         Text(clock(loaded.durationSeconds.toLong()),style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
                     }
-                } else {
-                    Wave(emptyList(),Modifier.fillMaxWidth().height(24.dp))
-                }
+                } else { Wave(emptyList(),Modifier.fillMaxWidth().height(24.dp)) }
             }
             Spacer(Modifier.width(10.dp))
             when {
@@ -176,7 +174,7 @@ import kotlinx.coroutines.*
         note!=null -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom=22.dp)) {
             Heading(s.tr("notes"),{s.selectedNoteId=null},s.tr("back"))
             Text(note.title,style=MaterialTheme.typography.headlineMedium);Spacer(Modifier.height(22.dp))
-            SelectionContainerCompat(note.body)
+            androidx.compose.foundation.text.selection.SelectionContainer { Text(note.body,style=MaterialTheme.typography.bodyLarge) }
             Spacer(Modifier.height(28.dp));Text(s.tr("sources"),style=MaterialTheme.typography.titleSmall)
             Text(s.tr("sourceHint"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             s.noteSources(note.id).forEach{source->
@@ -204,9 +202,6 @@ import kotlinx.coroutines.*
             }
         }
     }
-}
-@Composable private fun SelectionContainerCompat(text: String) {
-    androidx.compose.foundation.text.selection.SelectionContainer { Text(text,style=MaterialTheme.typography.bodyLarge) }
 }
 @Composable private fun NoteLine(n: Note, onClick:()->Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surface).clickable(role=Role.Button,onClick=onClick).padding(18.dp)) {
