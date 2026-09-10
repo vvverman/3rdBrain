@@ -50,6 +50,7 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
     suspend fun pinProject(id: String, pinned: Boolean): Project = mutex.withLock { commit(state.pinProject(id, pinned)); state.projects.first { it.id == id } }
     suspend fun orderPins(ids: List<String>): List<Project> = mutex.withLock { commit(state.orderPins(ids)); state.projects }
     suspend fun updateNote(id: String, update: NoteUpdate): Note = mutex.withLock { commit(state.updateNote(id, update, now())); state.notes.first { it.id == id } }
+    suspend fun pinNote(id: String, pinned: Boolean): Note = mutex.withLock { commit(state.pinNote(id, pinned)); state.notes.first { it.id == id } }
     suspend fun createCapture(fileName: String, bytes: ByteArray, requestedId: String? = null): Capture = mutex.withLock {
         require(bytes.isNotEmpty() && bytes.size <= 64 * 1024 * 1024) { "Допустим аудиофайл до 64 МБ" }
         val id = requestedId?.also { require(UUID.fromString(it).toString() == it.lowercase()) } ?: UUID.randomUUID().toString()
