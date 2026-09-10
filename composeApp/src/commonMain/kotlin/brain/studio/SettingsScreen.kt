@@ -63,15 +63,5 @@ import kotlinx.coroutines.launch
             Column(Modifier.weight(1f)){Text(s.tr("appLanguage"),style=MaterialTheme.typography.bodyMedium);Text(if(p.language=="system")s.tr("systemLanguage")else Languages.names[Languages.codes.indexOf(p.language)],style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)}
             Symbol(Glyph.NEXT,Modifier.size(18.dp))
         }
-        if(s.repository.simulated){
-            Spacer(Modifier.height(26.dp));Text(s.tr("demoSettings"),style=MaterialTheme.typography.titleSmall);Spacer(Modifier.height(12.dp))
-            Text(s.tr("demoNotice"),style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
-            listOf("idea","password","cooking").forEach{example->
-                Row(Modifier.fillMaxWidth().clickable(role=Role.RadioButton){save(p.copy(demoExample=example))}.padding(vertical=14.dp),verticalAlignment=Alignment.CenterVertically){
-                    Text(s.tr(example),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
-                    if(p.demoExample==example)Symbol(Glyph.CHECK,Modifier.size(16.dp))
-                }
-            }
-        }
     }
 }
