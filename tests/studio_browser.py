@@ -53,8 +53,6 @@ with sync_playwright() as pw:
     def current():return next((c for c in api('snapshot')['captures'] if c['noteId'] is None),None)
     def ready():return wait(lambda:(c if (c:=current()) and c['status']=='READY' else None),'готовый пример')
     def player():
-        # Compose Web экспортирует вкладки в DOM как button. Проверяем реальные
-        # пользовательские контролы и их координаты, не внутреннюю метку контейнера.
         nav=[]
         for name in ['Главная','Проекты','Настройки']:
             locator=page.get_by_role('button',name=name,exact=True);locator.wait_for(state='visible');nav.append(locator.bounding_box())
@@ -84,11 +82,12 @@ with sync_playwright() as pw:
         page.get_by_role('button',name='Отправить',exact=True).wait_for(state='visible')
         screen('recording');tab('Проекты');player();assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
         tab('Настройки');player();assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
+        assert 'Имитация ИИ' not in page.locator('body').aria_snapshot()
         tab('Главная');button('Пауза');assert page.evaluate('thirdBrainPlatform.phase()')=='paused'
         assert page.evaluate('thirdBrainPlatform.level()')==0
         button('Продолжить');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','продолжение')
         page.wait_for_timeout(1000);button('Отправить');first=ready()
-        checks.append('реальный микрофон Chrome, уровень, навигация, пауза и стоп')
+        checks.append('реальный микрофон Chrome, уровень, навигация, пауза и отправка')
         assert first['simulated'] and not first['llmApplied'] and first['audioFinalized'] and 'фигня' in first['transcript']
         assert first['savedSpeed']==1.5 and first['durationSeconds']>0
         page.get_by_role('button',name='Привести в порядок',exact=True).wait_for(state='visible');player()
@@ -101,20 +100,27 @@ with sync_playwright() as pw:
         note=api('snapshot')['notes'][0];old=note['body'];assert note['projectId']==work['id']
         checks.append('выбор проекта и новая заметка через UI')
         tab('Проекты');click('button',re.compile('^Твой первый проект'));click('button',re.compile('^Проверка приложения'))
+        button('Закрепить');wait(lambda:api('snapshot')['notes'][0]['pinned'],'закрепление заметки')
+        page.get_by_role('button',name='Открепить',exact=True).wait_for(state='visible')
+        button('Править');field('Название заметки','Отредактированная заметка');field('Текст заметки','Текст исправлен после сохранения.')
+        screen('note-editor');button('Сохранить')
+        edited=wait(lambda:(n if (n:=api('snapshot')['notes'][0])['title']=='Отредактированная заметка' and n['body']=='Текст исправлен после сохранения.' else None),'редактирование заметки')
+        assert edited['pinned'];old=edited['body'];checks.append('закрепление и встроенный редактор сохранённой заметки')
         player();button('Воспроизвести');wait(lambda:page.evaluate('thirdBrainPlatform.audioState().phase')=='playing','воспроизведение')
         button('Пауза');assert page.evaluate('thirdBrainPlatform.audioState().phase')=='paused'
         button('Продолжить');button('Стоп');checks.append('плеер: воспроизведение, пауза, продолжение, стоп')
         tab('Главная');button('Запись');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','вторая запись')
-        tab('Проекты');click('button',re.compile('^Проверка приложения'))
+        tab('Проекты');click('button',re.compile('^Отредактированная заметка'))
         page.get_by_role('button',name='Остановить и слушать',exact=True).wait_for(state='visible')
         player();button('Отмена');assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
-        click('button',re.compile('^Проверка приложения'));button('Остановить и слушать')
+        click('button',re.compile('^Отредактированная заметка'));button('Остановить и слушать')
         assert page.evaluate('thirdBrainPlatform.phase()')=='idle';second=ready()
         if page.evaluate('thirdBrainPlatform.audioState().phase')!='idle':button('Стоп')
         tab('Главная');page.get_by_role('button',name='Отправить в проект',exact=True).wait_for(state='visible')
-        button('Отправить в проект');click('button',re.compile('^Твой первый проект'));click('button',re.compile('^Проверка приложения'))
+        button('Отправить в проект');click('button',re.compile('^Твой первый проект'));click('button',re.compile('^Отредактированная заметка'))
         wait(lambda:current() is None,'дополнение');snapshot=api('snapshot')
         assert snapshot['notes'][0]['body'].startswith(old+'\n\n')
+        assert snapshot['notes'][0]['pinned']
         assert len([c for c in snapshot['captures'] if c['noteId']==note['id']])==2
         checks.append('подтверждение конфликта, отмена без остановки, добавление второго источника')
         button('Попробовать без микрофона');third=ready()
