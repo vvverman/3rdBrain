@@ -43,7 +43,7 @@ private val Paper = Color(0xFFF2F1F5)
     ), content = content)
 }
 
-enum class Glyph { RECORD, PLAY, PAUSE, STOP, SEND, HOME, FOLDER, SETTINGS, BACK, NEXT, PLUS, DELETE, MAGIC, MORE, PIN, UP, DOWN, CHECK }
+enum class Glyph { RECORD, PLAY, PAUSE, STOP, SEND, HOME, FOLDER, SETTINGS, BACK, NEXT, PLUS, DELETE, MAGIC, MORE, PIN, EDIT, UP, DOWN, CHECK }
 
 /** Авторская геометрия. Ни Material Icons, ни SF Symbols. */
 @Composable fun Symbol(glyph: Glyph, modifier: Modifier = Modifier.size(22.dp), color: Color = MaterialTheme.colorScheme.onSurface) {
@@ -69,6 +69,7 @@ enum class Glyph { RECORD, PLAY, PAUSE, STOP, SEND, HOME, FOLDER, SETTINGS, BACK
                 Glyph.MAGIC -> {path(12f,3f,14f,9f,20f,11f,14f,13f,12f,19f,10f,13f,4f,11f,10f,9f,12f,3f);line(20f,16f,20f,22f);line(17f,19f,23f,19f)}
                 Glyph.MORE -> {listOf(5f,12f,19f).forEach { drawCircle(color,1.5f,Offset(it,12f)) }}
                 Glyph.PIN -> {path(9f,3f,15f,3f,15f,10f,18f,13f,6f,13f,9f,10f,9f,3f);line(12f,13f,12f,21f)}
+                Glyph.EDIT -> { path(5f,19f,6f,14f,16f,4f,20f,8f,10f,18f,5f,19f); line(14f,6f,18f,10f); line(4f,21f,20f,21f) }
                 Glyph.UP -> path(5f,15f,12f,8f,19f,15f)
                 Glyph.DOWN -> path(5f,9f,12f,16f,19f,9f)
                 Glyph.CHECK -> path(4f,12f,10f,18f,20f,6f)
