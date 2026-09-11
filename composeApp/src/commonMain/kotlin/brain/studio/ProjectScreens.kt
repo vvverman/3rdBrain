@@ -11,11 +11,12 @@ import androidx.compose.ui.unit.dp
 import brain.model.*
 import kotlinx.coroutines.launch
 
+private fun tx(s: StudioState, key: String) = KashaCopy.text(s.language, key) ?: s.tr(key)
 private fun sortLabels(s: StudioState) = mapOf(
-    SortMode.ALPHABETICAL to s.tr("sortAlphabetical"),
-    SortMode.CREATED to s.tr("sortCreated"),
-    SortMode.UPDATED to s.tr("sortUpdated"),
-    SortMode.MANUAL to s.tr("sortManual"),
+    SortMode.ALPHABETICAL to tx(s, "sortAlphabetical"),
+    SortMode.CREATED to tx(s, "sortCreated"),
+    SortMode.UPDATED to tx(s, "sortUpdated"),
+    SortMode.MANUAL to tx(s, "sortManual"),
 )
 
 @Composable
@@ -148,7 +149,7 @@ internal fun DestinationScreen(s: StudioState) {
             if (project == null) s.choosingProject = false else s.targetProjectId = null
         }, s.tr("back"))
 
-        KashaDestinationSwitch(s.destinationKind, s.tr("note"), s.tr("task"), s::setDestinationKind)
+        KashaDestinationSwitch(s.destinationKind, tx(s, "note"), tx(s, "task"), s::setDestinationKind)
         Spacer(Modifier.height(18.dp))
 
         if (project == null) {
@@ -159,9 +160,9 @@ internal fun DestinationScreen(s: StudioState) {
                 items = s.orderedProjects(), key = { it.id }, manual = false, onManualOrder = {}, modifier = Modifier.weight(1f), spacing = 12.dp,
             ) { p, _ -> ProjectLine(p, { s.targetProjectId = p.id }) }
         } else if (s.destinationKind == DestinationKind.TASK) {
-            Text(s.tr("taskFromVoiceHint"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tx(s, "taskFromVoiceHint"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(18.dp))
-            Action(s.tr("saveTask"), { scope.launch { s.distributeTask(project.id) } }, primary = true, glyph = Glyph.TASKS,
+            Action(tx(s, "saveTask"), { scope.launch { s.distributeTask(project.id) } }, primary = true, glyph = Glyph.TASKS,
                 enabled = !s.busy, modifier = Modifier.fillMaxWidth())
         } else {
             Action(s.tr("newNote"), { scope.launch { s.distribute(project.id) } }, primary = true, glyph = Glyph.PLUS,
