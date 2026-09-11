@@ -82,7 +82,7 @@ object NoteText {
     fun append(existing: String, addition: String): String {
         val clean = addition.trim()
         if (clean.isEmpty()) return existing
-        return if (existing.isEmpty()) clean else existing.trimEnd() + "\n\n" + clean
+        return if (existing.isEmpty()) clean else existing + "\n\n" + clean
     }
 
     /** Первая непустая строка — единственный заголовок заметки. Отдельного поля в UX нет. */
