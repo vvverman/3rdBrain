@@ -21,13 +21,19 @@ internal fun TasksScreen(s: StudioState) {
         SortMode.UPDATED to t("sortUpdated"),
         SortMode.MANUAL to t("sortManual"),
     )
+
     Column(Modifier.fillMaxSize()) {
         Heading(t("tasks"))
         KashaSortBar(s.preferences.taskSort, labels, { scope.launch { s.setTaskSort(it) } })
         Spacer(Modifier.height(14.dp))
+
         val tasks = s.tasks()
         if (tasks.isEmpty()) {
-            Text(t("noTasks"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                t("noTasks"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         } else {
             KashaReorderableList(
                 items = tasks,
@@ -36,10 +42,17 @@ internal fun TasksScreen(s: StudioState) {
                 onManualOrder = { ids -> scope.launch { s.reorderTasks(ids) } },
                 modifier = Modifier.fillMaxSize(),
             ) { task, dragging ->
-                KashaListCard(onClick = {}, modifier = Modifier.graphicsLayer { alpha = if (dragging) .72f else 1f }) {
-                    KashaIcon(Glyph.TASKS, Modifier.size(20.dp), MaterialTheme.colorScheme.onSurfaceVariant, animated = dragging)
-                    Spacer(Modifier.width(13.dp))
-                    Text(task.text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                KashaListCard(
+                    onClick = {},
+                    modifier = Modifier.graphicsLayer { alpha = if (dragging) .72f else 1f },
+                ) {
+                    Text(
+                        task.text,
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
