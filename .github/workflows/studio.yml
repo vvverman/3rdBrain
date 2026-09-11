@@ -28,12 +28,13 @@ jobs:
         with:
           gradle-version: '8.14.5'
           cache-read-only: false
-      - name: Ресурсы дизайна, проверка алфавитов
+      - name: Ресурсы дизайна и граница Brain UI
         run: |
           command -v ffmpeg || brew install ffmpeg
           python3 -m venv .studio-python
           .studio-python/bin/pip install pillow==11.3.0 fonttools==4.59.2
           .studio-python/bin/python scripts/prepare-fonts.py
+          .studio-python/bin/python scripts/check-ui-boundary.py
           .studio-python/bin/python desktopApp/packaging/make-icon.py
       - name: Сборка и тесты общего кода и macOS
         run: |
