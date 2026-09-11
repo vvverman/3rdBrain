@@ -97,12 +97,9 @@ with sync_playwright() as pw:
         page.wait_for_timeout(350)
 
     def item(label):
-        # Compose WASM объединяет текст карточки и вторичный текст в одно accessible-name.
-        # Ищем пользовательскую карточку по началу её семантического имени.
-        locator = page.get_by_role('button', name=re.compile(r'^' + re.escape(label) + r'(?:\s|$)'))
-        if locator.count():
-            return locator.first
-        return page.get_by_text(label, exact=True)
+        # Compose WASM объединяет содержимое карточки в одно accessible-name.
+        # Не проверяем count заранее: карточка может появиться после ближайшей recomposition.
+        return page.get_by_role('button', name=re.compile(r'^' + re.escape(label) + r'(?:\s|$)')).first
 
     def item_y(label):
         locator = item(label)
@@ -112,8 +109,12 @@ with sync_playwright() as pw:
         return box['y']
 
     def drag(source, target):
-        a = item(source).bounding_box()
-        b = item(target).bounding_box()
+        source_locator = item(source)
+        target_locator = item(target)
+        source_locator.wait_for(state='visible', timeout=30000)
+        target_locator.wait_for(state='visible', timeout=30000)
+        a = source_locator.bounding_box()
+        b = target_locator.bounding_box()
         assert a and b, (source, target)
         page.mouse.move(a['x'] + a['width'] / 2, a['y'] + a['height'] / 2)
         page.mouse.down()
