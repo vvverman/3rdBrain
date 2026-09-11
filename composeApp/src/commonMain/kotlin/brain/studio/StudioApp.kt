@@ -19,13 +19,18 @@ fun StudioApp(state: StudioState) {
     LaunchedEffect(state.editRevision) {
         if (state.editRevision > 0) { delay(400); state.autosave() }
     }
+
     StudioTheme(state.preferences.theme) {
         val colors = MaterialTheme.colorScheme
         Surface(Modifier.fillMaxSize(), color = colors.background, contentColor = colors.onSurface) {
+            if (!state.initialized) {
+                KashaSplash()
+                return@Surface
+            }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(Modifier.widthIn(max = 430.dp).fillMaxWidth().fillMaxHeight().padding(horizontal = 24.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Kasha", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, letterSpacing = (-.4).sp)
+                Column(Modifier.widthIn(max = 430.dp).fillMaxWidth().fillMaxHeight().padding(horizontal = 20.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Kasha", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, letterSpacing = (-.3).sp)
                         if (state.repository.simulated) Text(state.tr("demoBadge"), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
                     }
                     Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -38,14 +43,21 @@ fun StudioApp(state: StudioState) {
                             else -> when (state.tab) {
                                 Tab.HOME -> HomeScreen(state)
                                 Tab.PROJECTS -> ProjectsScreen(state)
+                                Tab.TASKS -> TasksScreen(state)
                                 Tab.SETTINGS -> SettingsScreen(state)
                             }
                         }
                     }
                     GlobalPlayer(state)
-                    Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(Triple(Tab.HOME, "home", Glyph.HOME), Triple(Tab.PROJECTS, "projects", Glyph.FOLDER), Triple(Tab.SETTINGS, "settings", Glyph.SETTINGS)).forEach { (tab, key, icon) ->
-                            BrainNavigationItem(state.tr(key), icon, state.tab == tab, { state.navigate(tab) }, Modifier.weight(1f))
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(
+                            Triple(Tab.HOME, "home", Glyph.HOME),
+                            Triple(Tab.PROJECTS, "projects", Glyph.FOLDER),
+                            Triple(Tab.TASKS, "tasks", Glyph.TASKS),
+                            Triple(Tab.SETTINGS, "settings", Glyph.SETTINGS),
+                        ).forEach { (tab, key, icon) ->
+                            val label = if (key == "tasks") KashaCopy.text(state.language, key) ?: key else state.tr(key)
+                            KashaNavigationItem(label, icon, state.tab == tab, { state.navigate(tab) }, Modifier.weight(1f))
                         }
                     }
                 }
@@ -56,7 +68,7 @@ fun StudioApp(state: StudioState) {
 
 @Composable
 internal fun Heading(title: String, back: (() -> Unit)? = null, backLabel: String = "", action: (@Composable () -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically) {
         if (back != null) { IconAction(backLabel, Glyph.BACK, back); Spacer(Modifier.width(12.dp)) }
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
         action?.invoke()
