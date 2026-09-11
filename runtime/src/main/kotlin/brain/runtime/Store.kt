@@ -1,6 +1,7 @@
 package brain.runtime
 
 import brain.domain.BrainData
+import brain.domain.migrated
 import brain.model.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -25,11 +26,16 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
     init {
         root.createDirectories(); audioRoot.createDirectories()
         require(!Files.isSymbolicLink(stateFile) && !Files.isSymbolicLink(audioRoot))
+
         state = if (!stateFile.exists()) BrainData() else json.decodeFromString(Files.readString(stateFile))
+        val migrated = state.migrated()
+        if (migrated != state) commit(migrated)
+
         val recovered = state.copy(captures = state.captures.map {
             if (it.status.isWorking) it.copy(status = CaptureStatus.FAILED, message = "Обработка прервана; запись сохранена") else it
         })
         if (recovered != state) commit(recovered)
+
         Files.list(audioRoot).use { dirs -> dirs.filter { it.fileName.toString().startsWith(".deleted-") }.forEach { dir ->
             require(!Files.isSymbolicLink(dir))
             val id = dir.fileName.toString().removePrefix(".deleted-")
@@ -151,10 +157,12 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
     }
 
     private fun relative(path: Path) = root.toAbsolutePath().relativize(path.toAbsolutePath()).toString().replace('\\', '/')
+
     private fun commit(next: BrainData) {
         if (next == state) return
         atomicWrite(stateFile, json.encodeToString(next)); state = next
     }
+
     private fun now() = Clock.System.now().toEpochMilliseconds()
 }
 
