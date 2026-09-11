@@ -1,0 +1,49 @@
+name: Vendor Iconimate Snapshot
+
+on:
+  push:
+    branches: [refactor/kasha-core]
+    paths:
+      - '.github/workflows/vendor-iconimate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/kasha-core
+          fetch-depth: 0
+      - name: Copy pinned animated Phosphor registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          ICONIMATE_COMMIT=a5d64350968f87155ac6fb1656351adee0273de0
+          rm -rf /tmp/iconimate third_party/iconimate/upstream
+          git init -q /tmp/iconimate
+          git -C /tmp/iconimate remote add origin https://github.com/smammar100/Iconimate.git
+          git -C /tmp/iconimate fetch --depth 1 origin "$ICONIMATE_COMMIT"
+          git -C /tmp/iconimate checkout -q FETCH_HEAD
+          mkdir -p third_party/iconimate/upstream
+          cp -R /tmp/iconimate/registry third_party/iconimate/upstream/registry
+          cp /tmp/iconimate/LICENSE third_party/iconimate/upstream/LICENSE
+          cp /tmp/iconimate/README.md third_party/iconimate/upstream/README.md
+          cat > third_party/iconimate/SOURCE.md <<EOF
+          # Iconimate source snapshot
+
+          Upstream: https://github.com/smammar100/Iconimate
+          Commit: $ICONIMATE_COMMIT
+          License: MIT; Phosphor glyphs are MIT and are unmodified at rest upstream.
+
+          `upstream/registry` is a complete pinned copy of the animated icon registry used as the canonical motion source for Kasha UI. Product code must use only Phosphor geometry and motion ported from this snapshot.
+          EOF
+          git config user.name "Kasha Vendor Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add third_party/iconimate
+          if ! git diff --cached --quiet; then
+            git commit -m "Vendor complete animated Phosphor registry"
+            git push origin HEAD:refactor/kasha-core
+          fi
