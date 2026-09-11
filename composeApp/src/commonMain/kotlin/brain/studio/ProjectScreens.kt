@@ -149,7 +149,7 @@ internal fun DestinationScreen(s: StudioState) {
             if (project == null) s.choosingProject = false else s.targetProjectId = null
         }, s.tr("back"))
 
-        KashaDestinationSwitch(s.destinationKind, tx(s, "note"), tx(s, "task"), s::setDestinationKind)
+        KashaDestinationSwitch(s.destinationKind, tx(s, "note"), tx(s, "task"), s::chooseDestinationKind)
         Spacer(Modifier.height(18.dp))
 
         if (project == null) {
