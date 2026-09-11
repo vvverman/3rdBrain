@@ -83,7 +83,7 @@ class StudioState(
         languagePage = false
     }
 
-    fun setDestinationKind(value: DestinationKind) {
+    fun chooseDestinationKind(value: DestinationKind) {
         destinationKind = value
         targetProjectId = null
     }
