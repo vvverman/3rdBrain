@@ -36,8 +36,27 @@ object LocalModelText {
         }}
     """.trimIndent()
 
-    private fun words(text: String) = Regex("[а-яёa-z]{4,}", RegexOption.IGNORE_CASE).findAll(text)
+    private fun words(text: String) = Regex("""[\p{L}]{4,}""", RegexOption.IGNORE_CASE).findAll(text)
         .map { it.value.lowercase().replace('ё', 'е').take(5) }.toSet()
+
+    private val negations = setOf(
+        // Русский
+        "не", "ни", "нет", "нельзя", "никогда", "без",
+        // English
+        "no", "not", "never", "without", "cannot", "dont",
+        // Español
+        "nunca", "jamás", "jamas", "sin",
+        // Français
+        "ne", "pas", "jamais", "sans",
+        // Deutsch
+        "nicht", "kein", "keine", "keinen", "keinem", "keiner", "keines", "nie", "ohne",
+        // Українська
+        "ні", "немає", "нема", "ніколи", "не можна",
+        // Беларуская
+        "няма", "нельга", "ніколі",
+        // Қазақша
+        "емес", "жоқ", "ешқашан", "болмайды", "болмай", "болма",
+    )
 
     fun safeTitle(candidate: String, original: String): String {
         val title = candidate.trim().take(90)
@@ -46,8 +65,8 @@ object LocalModelText {
 
     fun requirePreserved(original: String, edited: String) {
         fun numbers(text: String) = Regex("[0-9]+(?:[.,][0-9]+)*").findAll(text).map { it.value }.sorted().toList()
-        fun negatives(text: String) = Regex("[а-яё]+", RegexOption.IGNORE_CASE).findAll(text)
-            .map { it.value.lowercase() }.filter { it in setOf("не", "ни", "нет", "нельзя", "никогда", "без") }.sorted().toList()
+        fun negatives(text: String) = Regex("""[\p{L}]+""", RegexOption.IGNORE_CASE).findAll(text)
+            .map { it.value.lowercase() }.filter { it in negations }.sorted().toList()
         require(numbers(original) == numbers(edited)) { "Модель изменила числа. Оставлен исходный текст" }
         require(negatives(original) == negatives(edited)) { "Модель изменила отрицания. Оставлен исходный текст" }
         val before = words(original); val after = words(edited)
