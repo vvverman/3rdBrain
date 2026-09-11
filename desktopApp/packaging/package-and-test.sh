@@ -23,6 +23,9 @@ done < <(find "$APP/Contents" -type f -print0)
 /usr/bin/codesign --force --deep --sign - --timestamp=none --entitlements desktopApp/packaging/entitlements.plist "$APP"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 /usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$APP/Contents/Info.plist"
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+DMG_NAME="Kasha-${VERSION}-macOS-arm64.dmg"
+DMG="$OUT/$DMG_NAME"
 rm -rf desktopApp/bundle/common
 if [ -d desktopApp/build/native ]; then mv desktopApp/build/native desktopApp/build/native-not-on-path; fi
 TEST_HOME="$OUT/clean-home"
@@ -79,22 +82,23 @@ mv "$APP" "$STAGE/Kasha.app"
 ln -s /Applications "$STAGE/Applications"
 cp desktopApp/packaging/Установка.txt "$STAGE/Установка.txt"
 # Обычное сжатие контейнера без изменения весов нейросетей.
-hdiutil create -volname 'Kasha' -srcfolder "$STAGE" -ov -format UDZO -imagekey zlib-level=1 "$OUT/Kasha-1.0.0-macOS-arm64.dmg"
+hdiutil create -volname 'Kasha' -srcfolder "$STAGE" -ov -format UDZO -imagekey zlib-level=1 "$DMG"
 phase 'Проверка готового DMG'
-hdiutil verify "$OUT/Kasha-1.0.0-macOS-arm64.dmg"
-(cd "$OUT" && shasum -a 256 Kasha-1.0.0-macOS-arm64.dmg > SHA256SUMS.txt)
+hdiutil verify "$DMG"
+(cd "$OUT" && shasum -a 256 "$DMG_NAME" > SHA256SUMS.txt)
 MOUNT="$OUT/mounted"
 mkdir -p "$MOUNT"
-hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$OUT/Kasha-1.0.0-macOS-arm64.dmg"
+hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$DMG"
 codesign --verify --deep --strict "$MOUNT/Kasha.app"
 test -x "$MOUNT/Kasha.app/Contents/app/resources/bin/whisper-cli"
 test -x "$MOUNT/Kasha.app/Contents/app/resources/bin/llama-completion"
 test -x "$MOUNT/Kasha.app/Contents/app/resources/bin/ffmpeg"
 hdiutil detach "$MOUNT"
+export KASHA_DMG_NAME="$DMG_NAME"
 python3 - <<'PY'
-import json, pathlib, platform
+import json, os, pathlib, platform
 out=pathlib.Path('macos-output')
-dmg=out/'Kasha-1.0.0-macOS-arm64.dmg'
+dmg=out/os.environ['KASHA_DMG_NAME']
 report={'passed':True,'file':dmg.name,'bytes':dmg.stat().st_size,'architecture':platform.machine(),
         'macOS':platform.mac_ver()[0],'bundledJava':True,'bundledModels':['Whisper Small','Qwen3-4B Q4_K_M'],
         'externalNetworkDeniedDuringInference':True,'developerIdSigned':False,'notarized':False,
