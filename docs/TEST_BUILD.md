@@ -33,3 +33,7 @@
 ## Переименование
 
 В 1.1.4 продукт называется **Kasha**. Тестовое macOS-приложение — **Kasha Test**, данные — `~/Library/Application Support/Kasha Test`, bundle ID — `ru.vrmn.kasha.test`. Служебные переменные окружения используют префикс `KASHA_`.
+
+## Переименование
+
+В 1.1.4 продукт называется **Kasha**. Тестовое macOS-приложение — **Kasha Test**, данные — `~/Library/Application Support/Kasha Test`, bundle ID — `ru.vrmn.kasha.test`. Служебные переменные окружения используют префикс `KASHA_`.
