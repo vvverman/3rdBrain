@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Проверка бренда
+        run: python3 scripts/check-brand-boundary.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -36,9 +38,9 @@ jobs:
           gradle --continue :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
       - name: Весь пользовательский путь в браузере
         run: |
-          export THIRDBRAIN_HOME=$(mktemp -d)
-          export THIRDBRAIN_DEMO_AI=1
-          export THIRDBRAIN_WEB_ROOT="$PWD/composeApp/build/dist/wasmJs/productionExecutable"
+          export KASHA_HOME=$(mktemp -d)
+          export KASHA_DEMO_AI=1
+          export KASHA_WEB_ROOT="$PWD/composeApp/build/dist/wasmJs/productionExecutable"
           bash runtime/build/install/runtime/bin/runtime > runtime.log 2>&1 &
           PID=$!
           trap 'kill "$PID" 2>/dev/null || true' EXIT
@@ -46,7 +48,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: studio-web-verification-${{ github.sha }}
+          name: kasha-web-verification-${{ github.sha }}
           retention-days: 14
           path: |
             kotlin.log
