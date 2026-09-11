@@ -1,0 +1,61 @@
+package brain.domain
+
+import brain.model.*
+import kotlin.test.*
+
+class KashaCoreTest {
+    @Test
+    fun manualProjectOrderSurvivesOtherSortModes() {
+        var data = BrainData()
+            .addProject("a", 100, ProjectDraft("Бета"))
+            .addProject("b", 200, ProjectDraft("Альфа"))
+            .addProject("c", 300, ProjectDraft("Гамма"))
+        data = data.orderProjects(listOf("c", "a", "b"))
+
+        assertEquals(listOf("c", "a", "b"), UserSort.projects(data.projects, SortMode.MANUAL).map { it.id })
+        assertEquals(listOf("b", "a", "c"), UserSort.projects(data.projects, SortMode.ALPHABETICAL).map { it.id })
+        assertEquals(listOf("c", "a", "b"), UserSort.projects(data.projects, SortMode.MANUAL).map { it.id })
+    }
+
+    @Test
+    fun notesAndTasksUseSameFourSortModes() {
+        val notes = listOf(
+            Note("n1", "p", "Бета", "", 100, 300, manualOrder = 1),
+            Note("n2", "p", "Альфа", "", 300, 100, manualOrder = 0),
+        )
+        assertEquals(listOf("n2", "n1"), UserSort.notes(notes, SortMode.ALPHABETICAL).map { it.id })
+        assertEquals(listOf("n2", "n1"), UserSort.notes(notes, SortMode.CREATED).map { it.id })
+        assertEquals(listOf("n1", "n2"), UserSort.notes(notes, SortMode.UPDATED).map { it.id })
+        assertEquals(listOf("n2", "n1"), UserSort.notes(notes, SortMode.MANUAL).map { it.id })
+
+        val tasks = listOf(
+            Task("t1", "p", "Бета", 100, 300, 1),
+            Task("t2", "p", "Альфа", 300, 100, 0),
+        )
+        assertEquals(listOf("t2", "t1"), UserSort.tasks(tasks, SortMode.ALPHABETICAL).map { it.id })
+        assertEquals(listOf("t2", "t1"), UserSort.tasks(tasks, SortMode.CREATED).map { it.id })
+        assertEquals(listOf("t1", "t2"), UserSort.tasks(tasks, SortMode.UPDATED).map { it.id })
+        assertEquals(listOf("t2", "t1"), UserSort.tasks(tasks, SortMode.MANUAL).map { it.id })
+    }
+
+    @Test
+    fun voiceCaptureCanBecomeTaskOnlyOnce() {
+        val project = Project("p", "Проект", createdAt = 1, updatedAt = 1)
+        val capture = Capture(
+            id = "c",
+            createdAt = 2,
+            title = "Мысль",
+            transcript = "Сделать локальную задачу",
+            preparedText = "Сделать локальную задачу",
+            status = CaptureStatus.READY,
+        )
+        val start = BrainData(projects = listOf(project), captures = listOf(capture))
+        val (after, task) = start.distributeTask("c", TaskDistributionRequest("p"), "t", 3)
+
+        assertEquals("Сделать локальную задачу", task.text)
+        assertEquals("p", task.projectId)
+        assertEquals("t", after.captures.single().taskId)
+        assertFalse(after.captures.single().isInbox)
+        assertFails { after.distribute("c", DistributionRequest("p"), "n", 4) }
+    }
+}
