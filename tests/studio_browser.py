@@ -65,11 +65,27 @@ with sync_playwright() as pw:
     def role_locator(role, name):
         return page.get_by_role(role, name=name) if hasattr(name, 'search') else page.get_by_role(role, name=name, exact=True)
 
+    def visible_item(locator, description, seconds=30):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            try:
+                count = locator.count()
+            except Exception:
+                count = 0
+            for index in range(count):
+                item = locator.nth(index)
+                try:
+                    if item.is_visible():
+                        box = item.bounding_box()
+                        if box and box['width'] > 0 and box['height'] > 0:
+                            return item, box
+                except Exception:
+                    pass
+            page.wait_for_timeout(100)
+        raise AssertionError('Не найден видимый элемент: ' + description)
+
     def click(role, name):
-        locator = role_locator(role, name)
-        locator.wait_for(state='visible', timeout=30000)
-        box = locator.bounding_box()
-        assert box and box['height'] > 0, name
+        _, box = visible_item(role_locator(role, name), str(name))
         page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
         page.wait_for_timeout(250)
 
@@ -77,18 +93,12 @@ with sync_playwright() as pw:
         click('button', name)
 
     def text_click(name):
-        locator = page.get_by_text(name, exact=True)
-        locator.wait_for(state='visible', timeout=30000)
-        box = locator.bounding_box()
-        assert box and box['height'] > 0, name
+        _, box = visible_item(page.get_by_text(name, exact=True), name)
         page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
         page.wait_for_timeout(250)
 
     def field(label, value):
-        locator = page.get_by_role('textbox', name=label, exact=True)
-        locator.wait_for(state='visible', timeout=30000)
-        box = locator.bounding_box()
-        assert box, label
+        _, box = visible_item(page.get_by_role('textbox', name=label, exact=True), label)
         page.mouse.click(box['x'] + min(24, box['width'] / 2), box['y'] + min(24, box['height'] / 2))
         page.wait_for_timeout(160)
         page.keyboard.press('Control+a')
@@ -104,8 +114,16 @@ with sync_playwright() as pw:
     def ready():
         return wait(lambda: (c if (c := current()) and c['status'] == 'READY' else None), 'готовая тестовая запись')
 
-    def card(prefix):
-        return page.get_by_role('button', name=re.compile(r'^' + re.escape(prefix) + r'(?:\s|$)')).first
+    def card_locator(prefix):
+        return page.get_by_role('button', name=re.compile(r'^' + re.escape(prefix) + r'(?:\s|$)'))
+
+    def click_card(prefix):
+        _, box = visible_item(card_locator(prefix), prefix)
+        page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+        page.wait_for_timeout(250)
+
+    def wait_card(prefix):
+        return visible_item(card_locator(prefix), prefix)[0]
 
     def screen(name):
         page.screenshot(path=str(OUT / (name + '.png')))
@@ -113,7 +131,7 @@ with sync_playwright() as pw:
     try:
         page.goto(BASE, wait_until='networkidle', timeout=60000)
         page.locator('canvas').first.wait_for(state='visible')
-        page.get_by_role('button', name='Главная', exact=True).wait_for(state='visible')
+        visible_item(page.get_by_role('button', name='Главная', exact=True), 'Главная')
         assert page.locator('#webApp').bounding_box()['width'] == 430
         snapshot = api('snapshot')
         assert len(snapshot['projects']) == 1 and snapshot['projects'][0]['title'] == 'Твой первый проект'
@@ -125,7 +143,7 @@ with sync_playwright() as pw:
 
         button('Попробовать без микрофона')
         ready()
-        page.get_by_role('textbox', name='Текст заметки', exact=True).wait_for(state='visible')
+        visible_item(page.get_by_role('textbox', name='Текст заметки', exact=True), 'Текст заметки')
         assert page.get_by_role('textbox', name='Название заметки', exact=True).count() == 0
         field('Текст заметки', 'Моя первая строка\nЭто тело заметки. Отдельного заголовка больше нет.')
         screen('capture-one-field-note')
@@ -141,7 +159,7 @@ with sync_playwright() as pw:
 
         button('Проекты')
         click('button', re.compile(r'^Твой первый проект'))
-        click('button', re.compile(r'^Моя первая строка'))
+        click_card('Моя первая строка')
         button('Править')
         field('Текст заметки', 'Новое название из первой строки\nИсправленное тело заметки.')
         button('Сохранить')
@@ -154,10 +172,10 @@ with sync_playwright() as pw:
         ready()
         field('Текст заметки', 'Позвонить в сервис\nУточнить статус ремонта и записать ответ.')
         button('В задачи')
-        page.get_by_role('textbox', name='Дата', exact=True).wait_for(state='visible')
+        visible_item(page.get_by_role('textbox', name='Дата', exact=True), 'Дата')
         assert page.get_by_text('Выберите проект', exact=True).count() == 0
         for label in ['Раз в 10 минут', 'Раз в полчаса', 'Раз в час', 'Каждый день', 'Каждую неделю', 'По выходным', 'По будням']:
-            page.get_by_text(label, exact=True).wait_for(state='visible')
+            visible_item(page.get_by_text(label, exact=True), label)
         field('Дата', '31.12.2099')
         field('Время', '12:00')
         text_click('Раз в 10 минут')
@@ -172,8 +190,8 @@ with sync_playwright() as pw:
         assert task['completedAt'] is None
         checks.append('задача со сроком и частотой напоминаний')
 
-        page.get_by_role('button', name='Задачи', exact=True).wait_for(state='visible')
-        click('button', re.compile(r'^Позвонить в сервис'))
+        visible_item(page.get_by_role('button', name='Задачи', exact=True), 'Задачи')
+        click_card('Позвонить в сервис')
         field('Задача', 'Позвонить в сервис повторно\nЗапросить письменное подтверждение.')
         button('Сохранить')
         wait(lambda: api('snapshot')['tasks'][0]['text'].startswith('Позвонить в сервис повторно'), 'редактирование задачи')
@@ -189,9 +207,9 @@ with sync_playwright() as pw:
         button('Выполнить')
         wait(lambda: api('snapshot')['tasks'][0]['completedAt'] is not None, 'выполнение задачи')
         button('Архив')
-        card('Позвонить в сервис повторно').wait_for(state='visible', timeout=30000)
+        wait_card('Позвонить в сервис повторно')
         screen('task-archive')
-        click('button', re.compile(r'^Позвонить в сервис повторно'))
+        click_card('Позвонить в сервис повторно')
         assert page.get_by_role('button', name='Выполнить', exact=True).count() == 0
         button('Удалить')
         wait(lambda: not api('snapshot')['tasks'], 'удаление задачи из архива')
