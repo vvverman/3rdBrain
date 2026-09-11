@@ -56,7 +56,10 @@ with sync_playwright() as pw:
         locator=page.get_by_role('textbox',name=label,exact=True);locator.wait_for(state='visible')
         box=locator.bounding_box();assert box,label
         page.mouse.click(box['x']+min(20,box['width']/2),box['y']+min(20,box['height']/2))
-        page.keyboard.press('Control+a');page.keyboard.insert_text(value);page.wait_for_timeout(600)
+        page.wait_for_timeout(160)
+        page.keyboard.press('Control+a');page.wait_for_timeout(90);page.keyboard.press('Backspace')
+        page.wait_for_timeout(90);page.keyboard.press('Control+a');page.wait_for_timeout(60)
+        page.keyboard.insert_text(value);page.wait_for_timeout(650)
     def current():return next((c for c in api('snapshot')['captures'] if c['noteId'] is None and c.get('taskId') is None),None)
     def ready():return wait(lambda:(c if (c:=current()) and c['status']=='READY' else None),'готовый пример')
     def player():
