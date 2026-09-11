@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Проверка бренда
+        run: python3 scripts/check-brand-boundary.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -40,7 +42,7 @@ jobs:
         id: native-cache
         with:
           path: desktopApp/bundle/common
-          key: macos-arm64-bundle-${{ hashFiles('desktopApp/packaging/build-native.sh') }}
+          key: kasha-macos-arm64-bundle-${{ hashFiles('desktopApp/packaging/build-native.sh') }}
       - name: Статические движки и исходные модели внутри приложения
         if: steps.native-cache.outputs.cache-hit != 'true'
         run: |
@@ -66,7 +68,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: macos-verification-${{ github.sha }}
+          name: kasha-macos-verification-${{ github.sha }}
           retention-days: 7
           path: |
             macos-compile.log
@@ -84,10 +86,10 @@ jobs:
             desktopApp/build/test-results
       - uses: actions/upload-artifact@v4
         with:
-          name: 3rdBrain-macOS-arm64
+          name: Kasha-macOS-arm64
           compression-level: 0
           retention-days: 7
           if-no-files-found: error
           path: |
-            macos-output/3rdBrain-1.0.0-macOS-arm64.dmg
+            macos-output/Kasha-1.0.0-macOS-arm64.dmg
             macos-output/SHA256SUMS.txt
