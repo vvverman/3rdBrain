@@ -14,19 +14,20 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun TasksScreen(s: StudioState) {
     val scope = rememberCoroutineScope()
+    fun t(key: String) = KashaCopy.text(s.language, key) ?: s.tr(key)
     val labels = mapOf(
-        SortMode.ALPHABETICAL to s.tr("sortAlphabetical"),
-        SortMode.CREATED to s.tr("sortCreated"),
-        SortMode.UPDATED to s.tr("sortUpdated"),
-        SortMode.MANUAL to s.tr("sortManual"),
+        SortMode.ALPHABETICAL to t("sortAlphabetical"),
+        SortMode.CREATED to t("sortCreated"),
+        SortMode.UPDATED to t("sortUpdated"),
+        SortMode.MANUAL to t("sortManual"),
     )
     Column(Modifier.fillMaxSize()) {
-        Heading(s.tr("tasks"))
+        Heading(t("tasks"))
         KashaSortBar(s.preferences.taskSort, labels, { scope.launch { s.setTaskSort(it) } })
         Spacer(Modifier.height(14.dp))
         val tasks = s.tasks()
         if (tasks.isEmpty()) {
-            Text(s.tr("noTasks"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t("noTasks"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             KashaReorderableList(
                 items = tasks,
