@@ -97,4 +97,31 @@ class KashaCoreTest {
         assertEquals(mapOf("p" to 4), reranked.relevance)
         assertTrue(reranked.rankingApplied)
     }
+
+    @Test
+    fun destructiveAiEditIsRejectedInsideCore() = runTest {
+        val intelligence = object : Intelligence {
+            override val simulated = false
+            override suspend fun transcribe(file: String, language: String, example: String) = ""
+            override suspend fun title(text: String, language: String) = ""
+            override suspend fun tidy(text: String, language: String) = "Совсем другой текст 99"
+            override suspend fun rank(text: String, projects: List<Project>, language: String) = emptyMap<String, Int>()
+        }
+        val original = "Нельзя удалить 42 важных пункта проекта"
+        val capture = Capture(
+            id = "c",
+            createdAt = 1,
+            title = "Проект",
+            transcript = original,
+            preparedText = original,
+            status = CaptureStatus.READY,
+        )
+
+        try {
+            CaptureWorkflow(intelligence).tidy(capture, "ru")
+            fail("Core обязан отклонить разрушительную AI-правку")
+        } catch (_: IllegalArgumentException) {
+            // Ожидаемое поведение: число, отрицание и содержание не сохранились.
+        }
+    }
 }
