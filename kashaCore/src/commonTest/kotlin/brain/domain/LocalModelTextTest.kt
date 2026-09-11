@@ -14,6 +14,12 @@ class LocalModelTextTest {
         assertFails { LocalModelText.requirePreserved("Не удалять. Без подписки. Нельзя терять текст.", "Удалять. Без подписки. Нельзя терять текст.") }
         LocalModelText.requirePreserved("старый текст удалять нельзя", "Старый текст удалять нельзя.")
     }
+    @Test fun negativeGuardWorksAcrossSupportedAlphabets() {
+        assertFails { LocalModelText.requirePreserved("Це не можна видаляти важливі записи про проєкт.", "Це можна видаляти важливі записи про проєкт.") }
+        assertFails { LocalModelText.requirePreserved("Гэтыя запісы нельга выдаляць з праекта ніколі.", "Гэтыя запісы можна выдаляць з праекта заўсёды.") }
+        assertFails { LocalModelText.requirePreserved("Бұл маңызды жазбаларды ешқашан жоюға болмайды.", "Бұл маңызды жазбаларды жоюға болады.") }
+        assertFails { LocalModelText.requirePreserved("Diese wichtigen Notizen dürfen nicht gelöscht werden.", "Diese wichtigen Notizen dürfen gelöscht werden.") }
+    }
     @Test fun missingFirstSentenceCannotHideInTitle() {
         val original = "В проекте приложения нужно исправить запись голоса. Добавить кнопку паузы и проверить сохранение заметок. Старый текст удалять нельзя."
         assertFails { ModelOutput.cleaned("""{"title":"Исправление записи голоса в проекте приложения","text":"Добавить кнопку паузы и проверить сохранение заметок. Старый текст удалять нельзя."}""", original) }
