@@ -64,15 +64,17 @@ with (out/'self-test.log').open('w') as log:
 print((out/'self-test.log').read_text(), flush=True)
 PY
 phase 'Настоящее окно приложения'
+UI_READY="$OUT/home-ready.txt"
+rm -f "$UI_READY"
 env -i HOME="$TEST_HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin TMPDIR="${TMPDIR:-/tmp}" \
  KASHA_HOME="$OUT/ui-data" "$APP/Contents/MacOS/Kasha" --ui-smoke "$OUT" > "$OUT/ui.log" 2>&1 &
 PID=$!
 for n in {1..40}; do
- [ -f "$OUT/ui-ready.txt" ] && break
+ [ -f "$UI_READY" ] && break
  kill -0 "$PID" 2>/dev/null || { cat "$OUT/ui.log"; exit 1; }
  sleep 1
 done
-[ -f "$OUT/ui-ready.txt" ]
+[ -f "$UI_READY" ]
 /usr/sbin/screencapture -x "$OUT/macos-window.png" || true
 wait "$PID"
 phase 'Создание установочного образа'
@@ -102,7 +104,7 @@ dmg=out/os.environ['KASHA_DMG_NAME']
 report={'passed':True,'file':dmg.name,'bytes':dmg.stat().st_size,'architecture':platform.machine(),
         'macOS':platform.mac_ver()[0],'bundledJava':True,'bundledModels':['Whisper Small','Qwen3-4B Q4_K_M'],
         'externalNetworkDeniedDuringInference':True,'developerIdSigned':False,'notarized':False,
-        'microphoneHardwareTested':False,'ui':(out/'ui-ready.txt').read_text(),
+        'microphoneHardwareTested':False,'ui':(out/'home-ready.txt').read_text(),
         'selfTest':json.loads((out/'self-test/self-test.json').read_text())}
 (out/'BUILD-REPORT.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 PY
