@@ -34,10 +34,10 @@ jobs:
           python scripts/prepare-fonts.py
           python scripts/check-ui-boundary.py
           bash -n run-web.sh scripts/gradle.sh
-      - name: Kasha Core на JVM/Android и metadata; UI, runtime и production WebAssembly
+      - name: Kasha Core и общий UI на JVM/Android; metadata, runtime и production WebAssembly
         run: |
           set -o pipefail
-          gradle --continue :kashaCore:assemble :kashaCore:jvmTest :kashaCore:compileKotlinMetadata :composeApp:jvmTest :runtime:test :desktopApp:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
+          gradle --continue :kashaCore:assemble :kashaCore:jvmTest :kashaCore:compileKotlinMetadata :composeApp:assemble :composeApp:jvmTest :runtime:test :desktopApp:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
       - name: Весь пользовательский путь в браузере
         run: |
           export KASHA_HOME=$(mktemp -d)
