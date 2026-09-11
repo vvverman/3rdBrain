@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Не даёт продуктовым экранам обходить Kasha UI или возвращать чужие иконки."""
+"""Не даёт продуктовым экранам обходить Kasha UI, возвращать чужие иконки или придумывать motion."""
 from pathlib import Path
 import re
 import sys
@@ -36,6 +36,31 @@ for path in ROOT.rglob("*.kt"):
 legacy = list(ROOT.rglob("*BrainUi*")) + list(ROOT.rglob("*BrainNavigation*"))
 for path in legacy:
     violations.append(f"{path.relative_to(ROOT.parents[4])}: legacy Brain UI должен быть удалён")
+
+# Motion в Kasha нельзя придумывать. До буквального порта сложной upstream-анимации
+# glyph остаётся статичным. Этот whitelist перечисляет только уже подтверждённые
+# прямые Compose-порты из закреплённых animated-Phosphor источников.
+icons_file = ROOT / "ui/KashaIcons.kt"
+if not icons_file.exists():
+    violations.append("ui/KashaIcons.kt: единый Phosphor-слой отсутствует")
+else:
+    icon_text = icons_file.read_text(encoding="utf-8")
+    allowed_motion = {"BACK", "NEXT", "UP", "DOWN", "SETTINGS", "EDIT"}
+    declared_motion = set(re.findall(r"Glyph\.([A-Z_]+)\s*->\s*Motion\s*\(", icon_text))
+    unexpected = sorted(declared_motion - allowed_motion)
+    missing = sorted(allowed_motion - declared_motion)
+    if unexpected:
+        violations.append(
+            "ui/KashaIcons.kt: motion без подтверждённого upstream-порта: " + ", ".join(unexpected)
+        )
+    if missing:
+        violations.append(
+            "ui/KashaIcons.kt: исчез подтверждённый upstream motion: " + ", ".join(missing)
+        )
+    if "else -> null" not in icon_text:
+        violations.append(
+            "ui/KashaIcons.kt: неподтверждённые glyphs должны оставаться статичными через `else -> null`"
+        )
 
 if violations:
     print("Kasha UI boundary нарушен:\n" + "\n".join(violations), file=sys.stderr)
