@@ -66,7 +66,7 @@ class KashaCoreTest {
         val intelligence = object : Intelligence {
             override val simulated = false
             override suspend fun transcribe(file: String, language: String, example: String) = "транскрипт"
-            override suspend fun title(text: String, language: String) = "Локальный заголовок"
+            override suspend fun title(text: String, language: String) = "Сырой текст — локальный заголовок"
             override suspend fun tidy(text: String, language: String) = "Сырой текст, аккуратно оформленный."
             override suspend fun rank(text: String, projects: List<Project>, language: String) = projects.associate { it.id to 4 }
         }
@@ -82,7 +82,7 @@ class KashaCoreTest {
 
         val finished = workflow.finish(capture, projects, "ru")
         assertEquals(CaptureStatus.READY, finished.status)
-        assertEquals("Локальный заголовок", finished.title)
+        assertEquals("Сырой текст — локальный заголовок", finished.title)
         assertEquals(mapOf("p" to 4), finished.relevance)
         assertTrue(finished.rankingApplied)
 
@@ -96,6 +96,43 @@ class KashaCoreTest {
         val reranked = workflow.rank(tidied, projects, "ru")
         assertEquals(mapOf("p" to 4), reranked.relevance)
         assertTrue(reranked.rankingApplied)
+    }
+
+    @Test
+    fun coreRejectsUnrelatedTitlesAndInvalidRelevance() = runTest {
+        val projects = listOf(Project("p", "Kasha", createdAt = 1, updatedAt = 1))
+        val capture = Capture(
+            id = "c",
+            createdAt = 2,
+            transcript = "Проверить сохранение локальной заметки",
+            preparedText = "Проверить сохранение локальной заметки",
+            status = CaptureStatus.COMPACTING,
+        )
+        val unrelatedTitle = object : Intelligence {
+            override val simulated = false
+            override suspend fun transcribe(file: String, language: String, example: String) = ""
+            override suspend fun title(text: String, language: String) = "Рецепт шоколадного торта"
+            override suspend fun tidy(text: String, language: String) = text
+            override suspend fun rank(text: String, projects: List<Project>, language: String) = projects.associate { it.id to 4 }
+        }
+        assertEquals(
+            "Проверить сохранение локальной заметки",
+            CaptureWorkflow(unrelatedTitle).finish(capture, projects, "ru").title,
+        )
+
+        val invalidRank = object : Intelligence {
+            override val simulated = false
+            override suspend fun transcribe(file: String, language: String, example: String) = ""
+            override suspend fun title(text: String, language: String) = "Локальная заметка"
+            override suspend fun tidy(text: String, language: String) = text
+            override suspend fun rank(text: String, projects: List<Project>, language: String) = mapOf("p" to 9)
+        }
+        try {
+            CaptureWorkflow(invalidRank).finish(capture, projects, "ru")
+            fail("Core обязан отклонить relevance вне диапазона 0..4")
+        } catch (_: IllegalArgumentException) {
+            // Ожидаемая защита контракта Intelligence.
+        }
     }
 
     @Test
