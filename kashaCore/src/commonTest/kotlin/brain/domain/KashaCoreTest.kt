@@ -1,6 +1,8 @@
 package brain.domain
 
 import brain.model.*
+import brain.studio.Intelligence
+import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class KashaCoreTest {
@@ -57,5 +59,42 @@ class KashaCoreTest {
         assertEquals("t", after.captures.single().taskId)
         assertFalse(after.captures.single().isInbox)
         assertFails { after.distribute("c", DistributionRequest("p"), "n", 4) }
+    }
+
+    @Test
+    fun captureAiWorkflowIsPlatformIndependent() = runTest {
+        val intelligence = object : Intelligence {
+            override val simulated = false
+            override suspend fun transcribe(file: String, language: String, example: String) = "транскрипт"
+            override suspend fun title(text: String, language: String) = "Локальный заголовок"
+            override suspend fun tidy(text: String, language: String) = "Аккуратный текст"
+            override suspend fun rank(text: String, projects: List<Project>, language: String) = projects.associate { it.id to 4 }
+        }
+        val workflow = CaptureWorkflow(intelligence)
+        val projects = listOf(Project("p", "Kasha", createdAt = 1, updatedAt = 1))
+        val capture = Capture(
+            id = "c",
+            createdAt = 2,
+            transcript = "сырой текст",
+            preparedText = "сырой текст",
+            status = CaptureStatus.COMPACTING,
+        )
+
+        val finished = workflow.finish(capture, projects, "ru")
+        assertEquals(CaptureStatus.READY, finished.status)
+        assertEquals("Локальный заголовок", finished.title)
+        assertEquals(mapOf("p" to 4), finished.relevance)
+        assertTrue(finished.rankingApplied)
+
+        val tidied = workflow.tidy(finished, "ru")
+        assertEquals("Аккуратный текст", tidied.preparedText)
+        assertTrue(tidied.draftEdited)
+        assertTrue(tidied.llmApplied)
+        assertFalse(tidied.rankingApplied)
+        assertEquals(emptyMap(), tidied.relevance)
+
+        val reranked = workflow.rank(tidied, projects, "ru")
+        assertEquals(mapOf("p" to 4), reranked.relevance)
+        assertTrue(reranked.rankingApplied)
     }
 }
