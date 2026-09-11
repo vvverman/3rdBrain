@@ -1,0 +1,177 @@
+package brain.domain
+
+import brain.model.*
+import kotlinx.serialization.Serializable
+
+/**
+ * Полностью платформонезависимое состояние Kasha.
+ * Формат хранит ручной порядок отдельно от выбранного способа сортировки:
+ * пользователь может уйти с MANUAL и вернуться к нему без потери раскладки.
+ */
+@Serializable
+data class BrainData(
+    val projects: List<Project> = emptyList(),
+    val notes: List<Note> = emptyList(),
+    val captures: List<Capture> = emptyList(),
+    val tasks: List<Task> = emptyList(),
+) {
+    fun addProject(id: String, now: Long, draft: ProjectDraft): BrainData {
+        require(projects.none { it.id == id }) { "Повторный идентификатор проекта" }
+        require(draft.title.isNotBlank()) { "Введите название проекта" }
+        val order = (projects.maxOfOrNull { it.manualOrder } ?: -1) + 1
+        return copy(projects = projects + Project(
+            id = id,
+            title = draft.title.trim(),
+            description = draft.description.trim(),
+            instruction = draft.instruction.trim(),
+            createdAt = now,
+            updatedAt = now,
+            manualOrder = order,
+        ))
+    }
+
+    fun updateProject(id: String, update: ProjectUpdate, now: Long = 0): BrainData {
+        require(update.title.isNotBlank()) { "Введите название проекта" }
+        val project = projects.firstOrNull { it.id == id } ?: error("Проект не найден")
+        val changed = project.copy(
+            title = update.title.trim(),
+            description = update.description.trim(),
+            instruction = update.instruction.trim(),
+            updatedAt = if (now > 0) now else project.updatedAt,
+        )
+        return copy(projects = projects.map { if (it.id == id) changed else it })
+    }
+
+    fun pinProject(id: String, pinned: Boolean): BrainData {
+        val old = projects.firstOrNull { it.id == id } ?: error("Проект не найден")
+        if (old.pinned == pinned) return this
+        val order = if (pinned) (projects.filter { it.pinned }.maxOfOrNull { it.pinOrder } ?: -1) + 1 else old.pinOrder
+        return copy(projects = projects.map { if (it.id == id) old.copy(pinned = pinned, pinOrder = order) else it })
+    }
+
+    fun orderPins(ids: List<String>): BrainData {
+        val pinned = projects.filter { it.pinned }.map { it.id }.toSet()
+        require(ids.size == pinned.size && ids.toSet() == pinned) { "Порядок должен включать все закреплённые проекты ровно один раз" }
+        val orders = ids.withIndex().associate { it.value to it.index }
+        return copy(projects = projects.map { p -> orders[p.id]?.let { p.copy(pinOrder = it) } ?: p })
+    }
+
+    fun orderProjects(ids: List<String>): BrainData {
+        val existing = projects.map { it.id }.toSet()
+        require(ids.size == existing.size && ids.toSet() == existing) { "Ручной порядок должен включать все проекты ровно один раз" }
+        val orders = ids.withIndex().associate { it.value to it.index }
+        return copy(projects = projects.map { it.copy(manualOrder = orders.getValue(it.id)) })
+    }
+
+    fun updateNote(id: String, update: NoteUpdate, now: Long): BrainData {
+        val old = notes.firstOrNull { it.id == id } ?: error("Заметка не найдена")
+        val changed = old.copy(title = update.title.trim().ifBlank { "Без названия" }, body = update.body, updatedAt = now)
+        return copy(notes = notes.map { if (it.id == id) changed else it })
+    }
+
+    fun pinNote(id: String, pinned: Boolean): BrainData {
+        val old = notes.firstOrNull { it.id == id } ?: error("Заметка не найдена")
+        if (old.pinned == pinned) return this
+        val order = if (pinned) {
+            (notes.filter { it.projectId == old.projectId && it.pinned }.maxOfOrNull { it.pinOrder } ?: -1) + 1
+        } else old.pinOrder
+        val changed = old.copy(pinned = pinned, pinOrder = order)
+        return copy(notes = notes.map { if (it.id == id) changed else it })
+    }
+
+    fun orderNotes(projectId: String, ids: List<String>): BrainData {
+        require(projects.any { it.id == projectId }) { "Проект не найден" }
+        val existing = notes.filter { it.projectId == projectId }.map { it.id }.toSet()
+        require(ids.size == existing.size && ids.toSet() == existing) { "Ручной порядок должен включать все заметки проекта ровно один раз" }
+        val orders = ids.withIndex().associate { it.value to it.index }
+        return copy(notes = notes.map { n ->
+            if (n.projectId == projectId) n.copy(manualOrder = orders.getValue(n.id)) else n
+        })
+    }
+
+    fun updateTask(id: String, update: TaskUpdate, now: Long): BrainData {
+        val old = tasks.firstOrNull { it.id == id } ?: error("Задача не найдена")
+        require(update.text.isNotBlank()) { "Введите текст задачи" }
+        val changed = old.copy(text = update.text.trim(), updatedAt = now)
+        return copy(tasks = tasks.map { if (it.id == id) changed else it })
+    }
+
+    fun orderTasks(ids: List<String>): BrainData {
+        val existing = tasks.map { it.id }.toSet()
+        require(ids.size == existing.size && ids.toSet() == existing) { "Ручной порядок должен включать все задачи ровно один раз" }
+        val orders = ids.withIndex().associate { it.value to it.index }
+        return copy(tasks = tasks.map { it.copy(manualOrder = orders.getValue(it.id)) })
+    }
+
+    fun addCapture(capture: Capture): BrainData {
+        require(captures.none { it.id == capture.id }) { "Повторный идентификатор записи" }
+        return copy(captures = captures + capture)
+    }
+
+    fun updateCapture(id: String, transform: (Capture) -> Capture): BrainData {
+        val old = captures.firstOrNull { it.id == id } ?: error("Запись не найдена")
+        val changed = transform(old)
+        require(changed.id == old.id && changed.createdAt == old.createdAt && changed.audioFileName == old.audioFileName) { "Нельзя подменить источник записи" }
+        return copy(captures = captures.map { if (it.id == id) changed else it })
+    }
+
+    fun updateDraft(id: String, update: CaptureDraftUpdate): BrainData = updateCapture(id) { old ->
+        require(!old.status.isWorking && old.isInbox) { "Дождитесь обработки. Сохранённый источник изменять нельзя" }
+        old.copy(
+            title = update.title.trim().ifBlank { NoteText.title(update.text) },
+            preparedText = update.text,
+            draftEdited = true,
+            relevance = emptyMap(),
+            rankingApplied = false,
+        )
+    }
+
+    fun distribute(id: String, request: DistributionRequest, newNoteId: String, now: Long): Pair<BrainData, Note> {
+        val capture = captures.firstOrNull { it.id == id } ?: error("Запись не найдена")
+        capture.noteId?.let { existing -> return this to (notes.firstOrNull { it.id == existing } ?: error("Заметка источника не найдена")) }
+        require(capture.taskId == null) { "Запись уже сохранена как задача" }
+        require(!capture.status.isWorking) { "Дождитесь завершения обработки" }
+        val project = projects.firstOrNull { it.id == request.projectId } ?: error("Проект не найден")
+        val addition = capture.textToSave
+        require(addition.isNotBlank()) { "В записи пока нет текста" }
+        val note = if (request.noteId == null) {
+            require(notes.none { it.id == newNoteId }) { "Повторный идентификатор заметки" }
+            val manualOrder = (notes.filter { it.projectId == project.id }.maxOfOrNull { it.manualOrder } ?: -1) + 1
+            Note(
+                id = newNoteId,
+                projectId = project.id,
+                title = request.title?.trim()?.takeIf { it.isNotEmpty() } ?: capture.title,
+                body = addition,
+                createdAt = now,
+                updatedAt = now,
+                manualOrder = manualOrder,
+            )
+        } else {
+            val old = notes.firstOrNull { it.id == request.noteId } ?: error("Заметка не найдена")
+            require(old.projectId == project.id) { "Заметка относится к другому проекту" }
+            old.copy(body = NoteText.append(old.body, addition), updatedAt = now)
+        }
+        val updated = if (request.noteId == null) notes + note else notes.map { if (it.id == note.id) note else it }
+        return copy(
+            notes = updated,
+            captures = captures.map { if (it.id == id) it.copy(noteId = note.id, appendedAt = now) else it },
+        ) to note
+    }
+
+    fun distributeTask(id: String, request: TaskDistributionRequest, newTaskId: String, now: Long): Pair<BrainData, Task> {
+        val capture = captures.firstOrNull { it.id == id } ?: error("Запись не найдена")
+        capture.taskId?.let { existing -> return this to (tasks.firstOrNull { it.id == existing } ?: error("Задача источника не найдена")) }
+        require(capture.noteId == null) { "Запись уже сохранена как заметка" }
+        require(!capture.status.isWorking) { "Дождитесь завершения обработки" }
+        request.projectId?.let { projectId -> require(projects.any { it.id == projectId }) { "Проект не найден" } }
+        val text = capture.textToSave.trim()
+        require(text.isNotBlank()) { "В записи пока нет текста" }
+        require(tasks.none { it.id == newTaskId }) { "Повторный идентификатор задачи" }
+        val order = (tasks.maxOfOrNull { it.manualOrder } ?: -1) + 1
+        val task = Task(newTaskId, request.projectId, text, now, now, order)
+        return copy(
+            tasks = tasks + task,
+            captures = captures.map { if (it.id == id) it.copy(taskId = task.id, appendedAt = now) else it },
+        ) to task
+    }
+}
