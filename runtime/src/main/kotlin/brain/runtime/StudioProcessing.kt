@@ -32,7 +32,7 @@ class StudioProcessor(val store: FileBrainStore, private val preferences: Prefer
     private val queued = mutableSetOf<String>()
     suspend fun enqueue(id: String, scope: CoroutineScope): Capture = queue.withLock {
         val c = store.capture(id) ?: error("Запись не найдена")
-        require(c.noteId == null)
+        require(c.isInbox)
         if (id in queued) return@withLock c
         val next = store.updateCapture(id) { it.copy(status = CaptureStatus.QUEUED, simulated = intelligence.simulated) }
         queued += id
@@ -40,7 +40,7 @@ class StudioProcessor(val store: FileBrainStore, private val preferences: Prefer
         next
     }
     suspend fun process(id: String): Capture = work.withLock {
-        var c = store.capture(id) ?: error("Запись не найдена"); require(c.noteId == null)
+        var c = store.capture(id) ?: error("Запись не найдена"); require(c.isInbox)
         val p = preferences.read(); val lang = Languages.resolve(p.language, Locale.getDefault().toLanguageTag())
         val dir = Files.createTempDirectory(store.root, ".audio-work-")
         try {
@@ -51,7 +51,6 @@ class StudioProcessor(val store: FileBrainStore, private val preferences: Prefer
                 store.updateCapture(id) { it.copy(status = CaptureStatus.TRANSCRIBING, simulated = intelligence.simulated, message = "") }
                 runner.run(listOf(ffmpeg, "-nostdin", "-v", "error", "-y", "-protocol_whitelist", "file,pipe", "-f", format,
                     "-i", source.toString(), "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", input.toString()), 300)
-                // Распознаём исходный темп ДО потерь кодирования и ускорения.
                 if (c.transcript.isBlank()) {
                     val text = intelligence.transcribe(input.toString(), lang, p.demoExample)
                     require(text.isNotBlank())
@@ -81,7 +80,7 @@ class StudioProcessor(val store: FileBrainStore, private val preferences: Prefer
         } finally { dir.toFile().deleteRecursively() }
     }
     suspend fun tidy(id: String): Capture = work.withLock {
-        val c = store.capture(id) ?: error("Запись не найдена"); require(c.noteId == null && !c.status.isWorking)
+        val c = store.capture(id) ?: error("Запись не найдена"); require(c.isInbox && !c.status.isWorking)
         store.updateCapture(id) { it.copy(status = CaptureStatus.POLISHING) }
         try {
             val p = preferences.read()
@@ -91,7 +90,7 @@ class StudioProcessor(val store: FileBrainStore, private val preferences: Prefer
         } catch (e: Exception) { withContext(NonCancellable) { store.updateCapture(id) { it.copy(status = c.status) } }; throw e }
     }
     suspend fun rank(id: String): Capture = work.withLock {
-        val c = store.capture(id) ?: error("Запись не найдена"); require(c.noteId == null && !c.status.isWorking)
+        val c = store.capture(id) ?: error("Запись не найдена"); require(c.isInbox && !c.status.isWorking)
         val p = preferences.read()
         val scores = intelligence.rank(c.textToSave, store.snapshot().projects, Languages.resolve(p.language, Locale.getDefault().toLanguageTag()))
         store.updateCapture(id) { it.copy(relevance = scores, rankingApplied = true) }
@@ -110,7 +109,7 @@ class StudioProcessor(val store: FileBrainStore, private val preferences: Prefer
 }
 
 class StudioDiskRepository(private val store: FileBrainStore, private val processor: StudioProcessor,
-    private val preferenceStore: PreferenceStore, private val scope: CoroutineScope) : brain.studio.StudioRepository {
+    private val preferenceStore: PreferenceStore, private val scope: CoroutineScope) : StudioRepository {
     override val simulated get() = processor.intelligence.simulated
     override suspend fun snapshot() = withContext(Dispatchers.IO) { store.snapshot() }
     override suspend fun preferences() = withContext(Dispatchers.IO) { preferenceStore.read() }
@@ -119,17 +118,21 @@ class StudioDiskRepository(private val store: FileBrainStore, private val proces
     override suspend fun updateProject(id: String, update: ProjectUpdate) = withContext(Dispatchers.IO) { store.updateProject(id, update) }
     override suspend fun pinProject(id: String, pinned: Boolean) = withContext(Dispatchers.IO) { store.pinProject(id, pinned) }
     override suspend fun orderPins(ids: List<String>) { withContext(Dispatchers.IO) { store.orderPins(ids) } }
+    override suspend fun orderProjects(ids: List<String>) { withContext(Dispatchers.IO) { store.orderProjects(ids) } }
     override suspend fun updateCaptureDraft(id: String, update: CaptureDraftUpdate) = withContext(Dispatchers.IO) { store.updateDraft(id, update) }
     override suspend fun distribute(id: String, request: DistributionRequest) = withContext(Dispatchers.IO) { store.distribute(id, request) }
+    override suspend fun distributeTask(id: String, request: TaskDistributionRequest) = withContext(Dispatchers.IO) { store.distributeTask(id, request) }
     override suspend fun updateNote(id: String, update: NoteUpdate) = withContext(Dispatchers.IO) { store.updateNote(id, update) }
     override suspend fun pinNote(id: String, pinned: Boolean) = withContext(Dispatchers.IO) { store.pinNote(id, pinned) }
+    override suspend fun orderNotes(projectId: String, ids: List<String>) { withContext(Dispatchers.IO) { store.orderNotes(projectId, ids) } }
+    override suspend fun updateTask(id: String, update: TaskUpdate) = withContext(Dispatchers.IO) { store.updateTask(id, update) }
+    override suspend fun orderTasks(ids: List<String>) { withContext(Dispatchers.IO) { store.orderTasks(ids) } }
     override suspend fun reprocess(id: String) = withContext(Dispatchers.IO) { processor.enqueue(id, scope) }
     override suspend fun tidy(id: String) = withContext(Dispatchers.IO) { processor.tidy(id) }
     override suspend fun rank(id: String) = withContext(Dispatchers.IO) { processor.rank(id) }
     override suspend fun discard(id: String) { withContext(Dispatchers.IO) { store.discard(id) } }
     override suspend fun createDemo(): Capture = withContext(Dispatchers.IO) {
         check(simulated)
-        // Отдельная явная демонстрация без микрофона: реальный WAV с тоном и длинной паузой.
         val data = ByteBuffer.allocate(44 + 16000 * 2 * 4).order(ByteOrder.LITTLE_ENDIAN)
         data.put("RIFF".toByteArray()).putInt(data.capacity() - 8).put("WAVEfmt ".toByteArray()).putInt(16)
         data.putShort(1).putShort(1).putInt(16000).putInt(32000).putShort(2).putShort(16)
@@ -139,7 +142,7 @@ class StudioDiskRepository(private val store: FileBrainStore, private val proces
     }
 }
 
-/** Настоящий адаптер сохранён, тестовая сборка его не создаёт и не содержит весов. */
+/** Настоящий локальный адаптер. Сеть для ИИ не используется. */
 class LocalStudioIntelligence(private val env: Map<String, String>, private val root: Path,
     private val runner: CommandRunner = JvmCommandRunner()) : Intelligence {
     override val simulated = false
