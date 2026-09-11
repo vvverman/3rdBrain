@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Минимальный загрузчик закреплённого Gradle. Это не официальный Gradle Wrapper.
 set -euo pipefail
-VERSION=8.14.5
-SHA256=6f74b601422d6d6fc4e1f9a1ab6522f642c2fdcbc15ae33ebd30ba3d7198e854
+VERSION=9.3.1
+SHA256=b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06
 CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/kasha-bootstrap"
 GRADLE="$CACHE/gradle-$VERSION/bin/gradle"
 if [ ! -x "$GRADLE" ]; then
