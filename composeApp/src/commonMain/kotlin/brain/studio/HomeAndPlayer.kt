@@ -29,10 +29,10 @@ internal fun HomeScreen(s: StudioState) {
         }
         s.current != null -> Column(Modifier.fillMaxSize().padding(top = 12.dp, bottom = 12.dp)) {
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                KashaEditableNote(
-                    title = s.title, onTitleChange = s::editTitle,
-                    body = s.text, onBodyChange = s::editText,
-                    titleLabel = s.tr("untitled"), bodyLabel = s.tr("body"),
+                KashaNoteText(
+                    value = s.text,
+                    onValueChange = s::editText,
+                    placeholder = KashaCopy.text(s.language, "noteText") ?: s.tr("body"),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(20.dp))
@@ -49,9 +49,23 @@ internal fun HomeScreen(s: StudioState) {
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(s.tr("cancelNote"), Glyph.DELETE, { s.confirmDelete = true }); Spacer(Modifier.width(10.dp))
-                Action(s.tr("send"), { scope.launch { s.send() } }, primary = true, glyph = Glyph.SEND, modifier = Modifier.weight(1f),
-                    enabled = s.text.isNotBlank() && !s.busy && s.current?.audioFinalized == true)
+                Action(
+                    KashaCopy.text(s.language, "sendToNotes") ?: s.tr("send"),
+                    { scope.launch { s.sendToNotes() } },
+                    primary = true,
+                    glyph = Glyph.SEND,
+                    modifier = Modifier.weight(1f),
+                    enabled = s.text.isNotBlank() && !s.busy && s.current?.audioFinalized == true,
+                )
             }
+            Spacer(Modifier.height(10.dp))
+            Action(
+                KashaCopy.text(s.language, "sendToTasks") ?: "В задачи",
+                { scope.launch { s.sendToTasks() } },
+                glyph = Glyph.TASKS,
+                enabled = s.text.isNotBlank() && !s.busy && s.current?.audioFinalized == true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         else -> Column(Modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp)) {
             KashaBrandSlot(Modifier.fillMaxWidth().height(164.dp))
@@ -108,13 +122,6 @@ internal fun GlobalPlayer(s: StudioState) {
                 s.playback.phase != "idle" -> IconAction(s.tr("stop"), Glyph.STOP, s::stopPlayback)
                 s.current == null && loaded != null && !s.pending -> IconAction(s.tr("record"), Glyph.RECORD, { scope.launch { s.startRecording() } })
             }
-        }
-        if (!s.recording && loaded?.audioFinalized == true) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            KashaQuietButton(
-                "${s.playbackRate}×",
-                { scope.launch { s.changePlaybackRate() } },
-                Modifier.semantics { contentDescription = s.tr("speed") },
-            )
         }
     }
 }
