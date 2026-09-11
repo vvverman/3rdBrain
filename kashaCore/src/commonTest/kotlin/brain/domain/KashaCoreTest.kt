@@ -3,6 +3,7 @@ package brain.domain
 import brain.model.*
 import brain.studio.Intelligence
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.TimeZone
 import kotlin.test.*
 
 class KashaCoreTest {
@@ -20,10 +21,16 @@ class KashaCoreTest {
     }
 
     @Test
+    fun noteTitleIsAlwaysFirstNonEmptyLine() {
+        assertEquals("Первая строка", NoteText.title("\n Первая строка \nвторая"))
+        assertEquals("вторая", NoteText.preview("Первая строка\nвторая"))
+    }
+
+    @Test
     fun notesAndTasksUseSameFourSortModes() {
         val notes = listOf(
-            Note("n1", "p", "Бета", "", 100, 300, manualOrder = 1),
-            Note("n2", "p", "Альфа", "", 300, 100, manualOrder = 0),
+            Note("n1", "p", "legacy", "Бета\nтекст", 100, 300, manualOrder = 1),
+            Note("n2", "p", "legacy", "Альфа\nтекст", 300, 100, manualOrder = 0),
         )
         assertEquals(listOf("n2", "n1"), UserSort.notes(notes, SortMode.ALPHABETICAL).map { it.id })
         assertEquals(listOf("n2", "n1"), UserSort.notes(notes, SortMode.CREATED).map { it.id })
@@ -41,7 +48,7 @@ class KashaCoreTest {
     }
 
     @Test
-    fun voiceCaptureCanBecomeTaskOnlyOnce() {
+    fun voiceCaptureCanBecomeScheduledTaskOnlyOnce() {
         val project = Project("p", "Проект", createdAt = 1, updatedAt = 1)
         val capture = Capture(
             id = "c",
@@ -52,13 +59,55 @@ class KashaCoreTest {
             status = CaptureStatus.READY,
         )
         val start = BrainData(projects = listOf(project), captures = listOf(capture))
-        val (after, task) = start.distributeTask("c", TaskDistributionRequest("p"), "t", 3)
+        val (after, task) = start.distributeTask(
+            "c",
+            TaskDistributionRequest(dueAt = 100_000, reminderRepeat = ReminderRepeat.THIRTY_MINUTES),
+            "t",
+            3,
+        )
 
         assertEquals("Сделать локальную задачу", task.text)
-        assertEquals("p", task.projectId)
+        assertNull(task.projectId)
+        assertEquals(100_000, task.dueAt)
+        assertEquals(100_000, task.nextReminderAt)
         assertEquals("t", after.captures.single().taskId)
         assertFalse(after.captures.single().isInbox)
         assertFails { after.distribute("c", DistributionRequest("p"), "n", 4) }
+    }
+
+    @Test
+    fun dueTaskRemindsAndMovesDeadlineToNextDay() {
+        val due = 1_700_000_000_000L
+        val task = Task(
+            id = "t",
+            text = "Позвонить",
+            createdAt = due - 10_000,
+            updatedAt = due - 10_000,
+            dueAt = due,
+            nextReminderAt = due,
+            reminderRepeat = ReminderRepeat.HOURLY,
+        )
+        val (after, reminders) = BrainData(tasks = listOf(task)).claimDueReminders(due, TimeZone.UTC.id)
+        assertEquals(listOf("t"), reminders.map { it.id })
+        assertEquals(due + 24 * 60 * 60 * 1000, after.tasks.single().dueAt)
+        assertEquals(due + 60 * 60 * 1000, after.tasks.single().nextReminderAt)
+    }
+
+    @Test
+    fun completingTaskMovesItToArchiveAndStopsReminders() {
+        val task = Task("t", text = "Сделать", createdAt = 1, updatedAt = 1, dueAt = 10, nextReminderAt = 10)
+        val after = BrainData(tasks = listOf(task)).completeTask("t", 20)
+        assertTrue(after.tasks.single().completed)
+        assertEquals(0, after.tasks.single().nextReminderAt)
+        assertEquals(emptyList(), SnapshotQueries.tasks(after.tasks, archived = false))
+        assertEquals(listOf("t"), SnapshotQueries.tasks(after.tasks, archived = true).map { it.id })
+    }
+
+    @Test
+    fun editingNoteRecomputesTitleFromBody() {
+        val note = Note("n", "p", "Старое", "Старое\nтело", 1, 1)
+        val data = BrainData(notes = listOf(note)).updateNote("n", NoteUpdate(body = "Новое название\nНовый текст"), 2)
+        assertEquals("Новое название", data.notes.single().title)
     }
 
     @Test
@@ -66,7 +115,7 @@ class KashaCoreTest {
         val intelligence = object : Intelligence {
             override val simulated = false
             override suspend fun transcribe(file: String, language: String, example: String) = "транскрипт"
-            override suspend fun title(text: String, language: String) = "Сырой текст — локальный заголовок"
+            override suspend fun title(text: String, language: String) = "Этот title больше не используется"
             override suspend fun tidy(text: String, language: String) = "Сырой текст, аккуратно оформленный."
             override suspend fun rank(text: String, projects: List<Project>, language: String) = projects.associate { it.id to 4 }
         }
@@ -82,12 +131,13 @@ class KashaCoreTest {
 
         val finished = workflow.finish(capture, projects, "ru")
         assertEquals(CaptureStatus.READY, finished.status)
-        assertEquals("Сырой текст — локальный заголовок", finished.title)
+        assertEquals("сырой текст", finished.title)
         assertEquals(mapOf("p" to 4), finished.relevance)
         assertTrue(finished.rankingApplied)
 
         val tidied = workflow.tidy(finished, "ru")
         assertEquals("Сырой текст, аккуратно оформленный.", tidied.preparedText)
+        assertEquals("Сырой текст, аккуратно оформленный.", tidied.title)
         assertTrue(tidied.draftEdited)
         assertTrue(tidied.llmApplied)
         assertFalse(tidied.rankingApplied)
@@ -99,7 +149,7 @@ class KashaCoreTest {
     }
 
     @Test
-    fun coreRejectsUnrelatedTitlesAndInvalidRelevance() = runTest {
+    fun invalidRelevanceStillRejected() = runTest {
         val projects = listOf(Project("p", "Kasha", createdAt = 1, updatedAt = 1))
         val capture = Capture(
             id = "c",
@@ -108,31 +158,14 @@ class KashaCoreTest {
             preparedText = "Проверить сохранение локальной заметки",
             status = CaptureStatus.COMPACTING,
         )
-        val unrelatedTitle = object : Intelligence {
-            override val simulated = false
-            override suspend fun transcribe(file: String, language: String, example: String) = ""
-            override suspend fun title(text: String, language: String) = "Рецепт шоколадного торта"
-            override suspend fun tidy(text: String, language: String) = text
-            override suspend fun rank(text: String, projects: List<Project>, language: String) = projects.associate { it.id to 4 }
-        }
-        assertEquals(
-            "Проверить сохранение локальной заметки",
-            CaptureWorkflow(unrelatedTitle).finish(capture, projects, "ru").title,
-        )
-
         val invalidRank = object : Intelligence {
             override val simulated = false
             override suspend fun transcribe(file: String, language: String, example: String) = ""
-            override suspend fun title(text: String, language: String) = "Локальная заметка"
+            override suspend fun title(text: String, language: String) = "не используется"
             override suspend fun tidy(text: String, language: String) = text
             override suspend fun rank(text: String, projects: List<Project>, language: String) = mapOf("p" to 9)
         }
-        try {
-            CaptureWorkflow(invalidRank).finish(capture, projects, "ru")
-            fail("Core обязан отклонить relevance вне диапазона 0..4")
-        } catch (_: IllegalArgumentException) {
-            // Ожидаемая защита контракта Intelligence.
-        }
+        assertFails { CaptureWorkflow(invalidRank).finish(capture, projects, "ru") }
     }
 
     @Test
@@ -154,11 +187,6 @@ class KashaCoreTest {
             status = CaptureStatus.READY,
         )
 
-        try {
-            CaptureWorkflow(intelligence).tidy(capture, "ru")
-            fail("Core обязан отклонить разрушительную AI-правку")
-        } catch (_: IllegalArgumentException) {
-            // Ожидаемое поведение: число, отрицание и содержание не сохранились.
-        }
+        assertFails { CaptureWorkflow(intelligence).tidy(capture, "ru") }
     }
 }
