@@ -234,7 +234,7 @@ class StudioStateTest {
         val repo = Repo(); repo.createDemo(); repo.ready()
         val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
         state.editText("Сделать задачу"); state.send(); state.chooseDestinationKind(DestinationKind.TASK)
-        state.distribute("p")
+        state.distributeTask("p")
         assertNull(state.current)
         assertTrue(repo.data.notes.isEmpty())
         assertEquals("Сделать задачу", state.snapshot.tasks.single().text)
