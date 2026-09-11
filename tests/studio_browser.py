@@ -113,7 +113,7 @@ with sync_playwright() as pw:
         button('Пауза');assert page.evaluate('kashaPlatform.audioState().phase')=='paused'
         button('Продолжить');button('Стоп');button('Назад');checks.append('плеер: воспроизведение, пауза, продолжение, стоп')
         tab('Главная');button('Запись');wait(lambda:page.evaluate('kashaPlatform.phase()')=='recording','вторая запись')
-        tab('Проекты');click('button',re.compile('^Отредактированная заметка'))
+        tab('Проекты');click('button',re.compile('^Твой первый проект'));click('button',re.compile('^Отредактированная заметка'))
         # Заголовок заметки можно менять, но аудиоисточник остаётся отдельной сущностью
         # со своим исходным заголовком. Нажимаем именно его для запуска прослушивания.
         click('button',re.compile('^Проверка приложения'))
