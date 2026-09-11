@@ -5,6 +5,7 @@ import brain.model.CaptureStatus
 import brain.model.Project
 import brain.studio.Intelligence
 import kotlinx.coroutines.CancellationException
+import kotlin.math.max
 
 /**
  * Общая AI/text-оркестрация одной голосовой записи.
@@ -39,8 +40,12 @@ class CaptureWorkflow(private val intelligence: Intelligence) {
 
     suspend fun tidy(capture: Capture, language: String): Capture {
         require(capture.isInbox && !capture.status.isWorking)
-        val text = intelligence.tidy(capture.textToSave, language)
+        val original = capture.textToSave
+        val text = intelligence.tidy(original, language)
         require(text.isNotBlank())
+        require(text.length >= original.trim().length / 2) { "Модель слишком сильно сократила текст. Оставлен исходный текст" }
+        require(text.length <= max(200, original.length * 2)) { "Модель добавила слишком много текста. Оставлен исходный текст" }
+        LocalModelText.requirePreserved(original, text)
         return capture.copy(
             preparedText = text,
             draftEdited = true,
