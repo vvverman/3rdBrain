@@ -41,6 +41,11 @@ fun <T> KashaReorderableList(
         local.add(to, item)
     }
 
+    fun restoreAuthoritativeOrder() {
+        local.clear()
+        local.addAll(items)
+    }
+
     val dragModifier = if (!manual) Modifier else Modifier.pointerInput(local.size) {
         detectDragGesturesAfterLongPress(
             onDragStart = { offset ->
@@ -64,7 +69,10 @@ fun <T> KashaReorderableList(
                 if (draggingKey != null) onManualOrder(local.map(key))
                 draggingKey = null
             },
-            onDragCancel = { draggingKey = null },
+            onDragCancel = {
+                restoreAuthoritativeOrder()
+                draggingKey = null
+            },
         )
     }
 
