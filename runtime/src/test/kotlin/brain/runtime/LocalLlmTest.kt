@@ -52,7 +52,7 @@ class LocalLlmTest {
         try {
             val model = root.resolve("model.bin"); Files.write(model, byteArrayOf(1))
             val service = LocalProcessing(FileBrainStore(root) { RuntimeStatus() }, mapOf(
-                "THIRDBRAIN_WHISPER_CLI" to root.resolve("absent").toString(), "THIRDBRAIN_WHISPER_MODEL" to model.toString()))
+                "KASHA_WHISPER_CLI" to root.resolve("absent").toString(), "KASHA_WHISPER_MODEL" to model.toString()))
             assertFalse(service.status().whisperConfigured)
         } finally { root.toFile().deleteRecursively() }
     }

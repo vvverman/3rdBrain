@@ -18,14 +18,14 @@ JAVA="${JAVA_HOME:+$JAVA_HOME/bin/}java"
 command -v "$JAVA" >/dev/null || { echo "Нужна JDK 21. На Mac: brew install openjdk@21" >&2; exit 1; }
 "$JAVA" -version >/dev/null 2>&1 || { echo "Не удалось запустить Java. Установите JDK 21." >&2; exit 1; }
 # Собственные настройки окружения имеют приоритет над подготовленным набором.
-ENV_FILE="${THIRDBRAIN_TOOLS_HOME:-$HOME/.3rdbrain-tools}/models.env"
-if [ -f "$ENV_FILE" ] && [ -z "${THIRDBRAIN_WHISPER_CLI:-}${THIRDBRAIN_WHISPER_MODEL:-}${THIRDBRAIN_LLAMA_CLI:-}${THIRDBRAIN_LLAMA_MODEL:-}" ]; then
+ENV_FILE="${KASHA_TOOLS_HOME:-$HOME/.kasha-tools}/models.env"
+if [ -f "$ENV_FILE" ] && [ -z "${KASHA_WHISPER_CLI:-}${KASHA_WHISPER_MODEL:-}${KASHA_LLAMA_CLI:-}${KASHA_LLAMA_MODEL:-}" ]; then
   source "$ENV_FILE"
 fi
-export THIRDBRAIN_WEB_ROOT="$PWD/composeApp/build/dist/wasmJs/productionExecutable"
+export KASHA_WEB_ROOT="$PWD/composeApp/build/dist/wasmJs/productionExecutable"
 if [ "$BUILD" = yes ]; then bash scripts/gradle.sh :composeApp:wasmJsBrowserDistribution :runtime:installDist; fi
 [ -f runtime/build/install/runtime/bin/runtime ] || { echo "Сначала запустите без --no-build" >&2; exit 1; }
-echo "3rdBrain: http://127.0.0.1:8787 . Для остановки нажмите Ctrl+C."
+echo "Kasha: http://127.0.0.1:8787 . Для остановки нажмите Ctrl+C."
 if [ "$OPEN" = yes ]; then
   (
     for attempt in {1..60}; do

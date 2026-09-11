@@ -24,18 +24,18 @@ class DesktopServices(val root: Path, val resources: Path, cpuOnly: Boolean = fa
     init {
         Files.createDirectories(root)
         lockChannel = FileChannel.open(root.resolve(".desktop.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE)
-        lock = try { lockChannel.tryLock() ?: error("3rdBrain уже запущен") } catch(e: Exception) { lockChannel.close(); throw e }
+        lock = try { lockChannel.tryLock() ?: error("Kasha уже запущен") } catch(e: Exception) { lockChannel.close(); throw e }
         try {
-            val env = if (simulated) mapOf("THIRDBRAIN_FFMPEG" to bundledExecutable(resources,"ffmpeg")) else bundledEnvironment(resources)
+            val env = if (simulated) mapOf("KASHA_FFMPEG" to bundledExecutable(resources,"ffmpeg")) else bundledEnvironment(resources)
             store = FileBrainStore(root, runtimeStatus = { RuntimeStatus(localOnly=true, simulated=simulated) }, singleCurrent=true)
             val runner = DesktopInferenceRunner(cpuOnly)
             processing = LocalProcessing(store, env, runner)
             val prefs = PreferenceStore(root)
             val intelligence: Intelligence = if(simulated) DemoIntelligence() else LocalStudioIntelligence(env,root,runner)
-            studioProcessor = StudioProcessor(store,prefs,intelligence,env.getValue("THIRDBRAIN_FFMPEG"),runner)
+            studioProcessor = StudioProcessor(store,prefs,intelligence,env.getValue("KASHA_FFMPEG"),runner)
             repository = StudioDiskRepository(store,studioProcessor,prefs,scope)
             recorder = DesktopRecorder(root,store){studioProcessor.enqueue(it,scope)}
-            audio = DesktopAudio(store,env.getValue("THIRDBRAIN_FFMPEG"),root,scope)
+            audio = DesktopAudio(store,env.getValue("KASHA_FFMPEG"),root,scope)
         } catch(e: Exception) { lock.release();lockChannel.close();scope.cancel();throw e }
     }
     override fun close() {
@@ -50,7 +50,7 @@ private fun bundledExecutable(resources:Path,name:String):String = resources.res
 }
 fun bundledEnvironment(resources:Path):Map<String,String> {
     fun model(name:String)=resources.resolve("models/$name").toAbsolutePath().toString().also{require(Files.isRegularFile(Path.of(it))&&Files.size(Path.of(it))>1_000_000){"В пакете отсутствует модель $name"}}
-    return mapOf("THIRDBRAIN_WHISPER_CLI" to bundledExecutable(resources,"whisper-cli"),"THIRDBRAIN_WHISPER_MODEL" to model("ggml-small.bin"),
-        "THIRDBRAIN_LLAMA_CLI" to bundledExecutable(resources,"llama-completion"),"THIRDBRAIN_LLAMA_MODEL" to model("Qwen3-4B-Q4_K_M.gguf"),
-        "THIRDBRAIN_FFMPEG" to bundledExecutable(resources,"ffmpeg"))
+    return mapOf("KASHA_WHISPER_CLI" to bundledExecutable(resources,"whisper-cli"),"KASHA_WHISPER_MODEL" to model("ggml-small.bin"),
+        "KASHA_LLAMA_CLI" to bundledExecutable(resources,"llama-completion"),"KASHA_LLAMA_MODEL" to model("Qwen3-4B-Q4_K_M.gguf"),
+        "KASHA_FFMPEG" to bundledExecutable(resources,"ffmpeg"))
 }

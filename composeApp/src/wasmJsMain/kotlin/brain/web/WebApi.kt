@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
 class WebBrainRepository(private val baseUrl:String):StudioRepository {
     override var simulated:Boolean=true;private set
     private val client=HttpClient(Js){
-        expectSuccess=true;defaultRequest{header("X-3rdBrain-Client","web")}
+        expectSuccess=true;defaultRequest{header("X-Kasha-Client","web")}
         install(HttpTimeout){requestTimeoutMillis=30000}
         install(ContentNegotiation){json(Json{ignoreUnknownKeys=true;encodeDefaults=true})}
     }

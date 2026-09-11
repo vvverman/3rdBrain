@@ -3,7 +3,7 @@
 set -euo pipefail
 VERSION=8.14.5
 SHA256=6f74b601422d6d6fc4e1f9a1ab6522f642c2fdcbc15ae33ebd30ba3d7198e854
-CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/thirdbrain-bootstrap"
+CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/kasha-bootstrap"
 GRADLE="$CACHE/gradle-$VERSION/bin/gradle"
 if [ ! -x "$GRADLE" ]; then
   command -v curl >/dev/null || { echo "Нужен curl" >&2; exit 1; }

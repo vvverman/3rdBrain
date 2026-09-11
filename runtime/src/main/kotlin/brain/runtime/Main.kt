@@ -31,22 +31,22 @@ private val LocalAccess=createApplicationPlugin("LocalAccess"){
         val origin=call.request.headers[HttpHeaders.Origin]
         if(origin!=null&&origin !in localOrigins)throw LocalAccessDenied()
         if(call.request.headers["Sec-Fetch-Site"]=="cross-site"&&origin==null)throw LocalAccessDenied()
-        if(call.request.httpMethod in setOf(HttpMethod.Post,HttpMethod.Put,HttpMethod.Delete)&&call.request.headers["X-3rdBrain-Client"]!="web")throw LocalAccessDenied()
+        if(call.request.httpMethod in setOf(HttpMethod.Post,HttpMethod.Put,HttpMethod.Delete)&&call.request.headers["X-Kasha-Client"]!="web")throw LocalAccessDenied()
         val length=call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull();require(length==null||length<=MAX_AUDIO+65536)
         call.response.headers.append("X-Content-Type-Options","nosniff");call.response.headers.append("Cache-Control","no-store")
     }
 }
 fun main(){
-    val root=Path.of(System.getenv("THIRDBRAIN_HOME")?:Path.of(System.getProperty("user.home"),".3rdbrain-studio-test").toString())
-    val simulated=System.getenv("THIRDBRAIN_DEMO_AI")=="1"
-    val env=System.getenv();val ffmpeg=env["THIRDBRAIN_FFMPEG"]?:"ffmpeg"
+    val root=Path.of(System.getenv("KASHA_HOME")?:Path.of(System.getProperty("user.home"),".kasha-studio-test").toString())
+    val simulated=System.getenv("KASHA_DEMO_AI")=="1"
+    val env=System.getenv();val ffmpeg=env["KASHA_FFMPEG"]?:"ffmpeg"
     val store=FileBrainStore(root,runtimeStatus={RuntimeStatus(localOnly=true,simulated=simulated)},singleCurrent=true)
     val legacy=LocalProcessing(store,env)
     val prefs=PreferenceStore(root)
     val intelligence:Intelligence=if(simulated)DemoIntelligence()else LocalStudioIntelligence(env,root)
     val processor=StudioProcessor(store,prefs,intelligence,ffmpeg)
-    val webRoot=Path.of(System.getenv("THIRDBRAIN_WEB_ROOT")?:"composeApp/build/dist/wasmJs/productionExecutable")
-    println("3rdBrain: http://127.0.0.1:8787 ; simulated AI=$simulated")
+    val webRoot=Path.of(System.getenv("KASHA_WEB_ROOT")?:"composeApp/build/dist/wasmJs/productionExecutable")
+    println("Kasha: http://127.0.0.1:8787 ; simulated AI=$simulated")
     embeddedServer(Netty,host="127.0.0.1",port=8787){brainModule(store,legacy,webRoot,StudioDiskRepository(store,processor,prefs,this))}.start(wait=true)
 }
 fun Application.brainModule(store:FileBrainStore,processing:LocalProcessing,webRoot:Path?=null,studio:StudioRepository?=null){
@@ -63,7 +63,7 @@ fun Application.brainModule(store:FileBrainStore,processing:LocalProcessing,webR
     install(CORS){
         allowHost("localhost:8080");allowHost("127.0.0.1:8080");allowHost("localhost:8787");allowHost("127.0.0.1:8787")
         allowMethod(HttpMethod.Put);allowMethod(HttpMethod.Post);allowMethod(HttpMethod.Delete)
-        allowHeader(HttpHeaders.ContentType);allowHeader("X-3rdBrain-Client");allowHeader("X-Capture-Id");allowNonSimpleContentTypes=true
+        allowHeader(HttpHeaders.ContentType);allowHeader("X-Kasha-Client");allowHeader("X-Capture-Id");allowNonSimpleContentTypes=true
     }
     routing{
         get("/api/health"){call.respond(mapOf("ok" to true))}

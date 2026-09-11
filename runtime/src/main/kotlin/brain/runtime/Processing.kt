@@ -13,11 +13,11 @@ class LocalProcessing(
     private val env: Map<String, String> = System.getenv(),
     private val runner: CommandRunner = JvmCommandRunner(),
 ) {
-    private val whisperCli = env["THIRDBRAIN_WHISPER_CLI"]
-    private val whisperModel = env["THIRDBRAIN_WHISPER_MODEL"]
-    private val llamaCli = env["THIRDBRAIN_LLAMA_CLI"]
-    private val llamaModel = env["THIRDBRAIN_LLAMA_MODEL"]
-    private val ffmpeg = env["THIRDBRAIN_FFMPEG"] ?: "ffmpeg"
+    private val whisperCli = env["KASHA_WHISPER_CLI"]
+    private val whisperModel = env["KASHA_WHISPER_MODEL"]
+    private val llamaCli = env["KASHA_LLAMA_CLI"]
+    private val llamaModel = env["KASHA_LLAMA_MODEL"]
+    private val ffmpeg = env["KASHA_FFMPEG"] ?: "ffmpeg"
     private val workLock = Mutex()
     private val queueLock = Mutex()
     private val queued = mutableSetOf<String>()

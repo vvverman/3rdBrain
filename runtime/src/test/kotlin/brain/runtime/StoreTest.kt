@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 class StoreTest {
     @Test
     fun appendIsIdempotentAndOldTextStaysUntouched() = runBlocking {
-        val dir = Files.createTempDirectory("thirdbrain-test")
+        val dir = Files.createTempDirectory("kasha-test")
         try {
             val store = FileBrainStore(dir) { RuntimeStatus() }
             val project = store.createProject(ProjectDraft("Проект", instruction = "Тест"))
@@ -37,7 +37,7 @@ class StoreTest {
 
     @Test
     fun stateSurvivesReopen() = runBlocking {
-        val dir = Files.createTempDirectory("thirdbrain-reopen")
+        val dir = Files.createTempDirectory("kasha-reopen")
         try {
             val first = FileBrainStore(dir) { RuntimeStatus() }
             first.createProject(ProjectDraft("Живой проект"))

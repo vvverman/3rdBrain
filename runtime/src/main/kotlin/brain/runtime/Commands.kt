@@ -13,7 +13,7 @@ fun interface CommandRunner {
 /** Без shell, раздельные stdout/stderr, ограниченные вывод и время, отмена дочерних процессов. */
 class JvmCommandRunner : CommandRunner {
     override suspend fun run(command: List<String>, timeoutSeconds: Long): String = withContext(Dispatchers.IO) {
-        val dir = Files.createTempDirectory("thirdbrain-command-")
+        val dir = Files.createTempDirectory("kasha-command-")
         val out = dir.resolve("stdout"); val err = dir.resolve("stderr")
         var process: Process? = null
         try {

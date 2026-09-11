@@ -1,6 +1,6 @@
 # Brain UI
 
-Brain UI — закрытый UI-слой 3rdBrain поверх Compose Foundation/UI. Цель — один стабильный набор компонентов и состояний для Android, iOS, Desktop и Web без визуальной зависимости от Material Design.
+Brain UI — закрытый UI-слой Kasha поверх Compose Foundation/UI. Цель — один стабильный набор компонентов и состояний для Android, iOS, Desktop и Web без визуальной зависимости от Material Design.
 
 ## Правило
 

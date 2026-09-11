@@ -13,7 +13,7 @@ BASE='http://127.0.0.1:8787'
 OUT=pathlib.Path('test-output/studio');OUT.mkdir(parents=True,exist_ok=True)
 
 def api(path,data=None,method=None):
-    headers={'X-3rdBrain-Client':'web'}
+    headers={'X-Kasha-Client':'web'}
     if data is not None:headers['Content-Type']='application/json'
     req=urllib.request.Request(BASE+'/api/'+path,data=json.dumps(data).encode() if data is not None else None,headers=headers,method=method)
     with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
@@ -76,16 +76,16 @@ with sync_playwright() as pw:
         page.get_by_role('button',name='Запись',exact=True).wait_for(state='visible')
         assert api('snapshot')['projects']==projects
         checks.append('первый проект без настройки, повторный запуск без дубликатов')
-        tab('Главная');button('Запись');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','запись')
-        wait(lambda:page.evaluate('thirdBrainPlatform.level()')>0,'реальный аудиосигнал')
+        tab('Главная');button('Запись');wait(lambda:page.evaluate('kashaPlatform.phase()')=='recording','запись')
+        wait(lambda:page.evaluate('kashaPlatform.level()')>0,'реальный аудиосигнал')
         assert page.get_by_role('button',name='Стоп',exact=True).count()==0
         page.get_by_role('button',name='Отправить',exact=True).wait_for(state='visible')
-        screen('recording');tab('Проекты');player();assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
-        tab('Настройки');player();assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
+        screen('recording');tab('Проекты');player();assert page.evaluate('kashaPlatform.phase()')=='recording'
+        tab('Настройки');player();assert page.evaluate('kashaPlatform.phase()')=='recording'
         assert 'Имитация ИИ' not in page.locator('body').aria_snapshot()
-        tab('Главная');button('Пауза');assert page.evaluate('thirdBrainPlatform.phase()')=='paused'
-        assert page.evaluate('thirdBrainPlatform.level()')==0
-        button('Продолжить');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','продолжение')
+        tab('Главная');button('Пауза');assert page.evaluate('kashaPlatform.phase()')=='paused'
+        assert page.evaluate('kashaPlatform.level()')==0
+        button('Продолжить');wait(lambda:page.evaluate('kashaPlatform.phase()')=='recording','продолжение')
         page.wait_for_timeout(1000);button('Отправить');first=ready()
         checks.append('реальный микрофон Chrome, уровень, навигация, пауза и отправка')
         assert first['simulated'] and not first['llmApplied'] and first['audioFinalized'] and 'фигня' in first['transcript']
@@ -109,19 +109,19 @@ with sync_playwright() as pw:
         # Сохранение оставляет пользователя в заметке; возвращаемся к списку и
         # снова открываем её — это отдельно проверяет отображение нового названия.
         button('Назад');click('button',re.compile('^Отредактированная заметка'))
-        player();button('Воспроизвести');wait(lambda:page.evaluate('thirdBrainPlatform.audioState().phase')=='playing','воспроизведение')
-        button('Пауза');assert page.evaluate('thirdBrainPlatform.audioState().phase')=='paused'
+        player();button('Воспроизвести');wait(lambda:page.evaluate('kashaPlatform.audioState().phase')=='playing','воспроизведение')
+        button('Пауза');assert page.evaluate('kashaPlatform.audioState().phase')=='paused'
         button('Продолжить');button('Стоп');button('Назад');checks.append('плеер: воспроизведение, пауза, продолжение, стоп')
-        tab('Главная');button('Запись');wait(lambda:page.evaluate('thirdBrainPlatform.phase()')=='recording','вторая запись')
+        tab('Главная');button('Запись');wait(lambda:page.evaluate('kashaPlatform.phase()')=='recording','вторая запись')
         tab('Проекты');click('button',re.compile('^Отредактированная заметка'))
         # Заголовок заметки можно менять, но аудиоисточник остаётся отдельной сущностью
         # со своим исходным заголовком. Нажимаем именно его для запуска прослушивания.
         click('button',re.compile('^Проверка приложения'))
         page.get_by_role('button',name='Остановить и слушать',exact=True).wait_for(state='visible')
-        player();button('Отмена');assert page.evaluate('thirdBrainPlatform.phase()')=='recording'
+        player();button('Отмена');assert page.evaluate('kashaPlatform.phase()')=='recording'
         click('button',re.compile('^Проверка приложения'));button('Остановить и слушать')
-        assert page.evaluate('thirdBrainPlatform.phase()')=='idle';second=ready()
-        if page.evaluate('thirdBrainPlatform.audioState().phase')!='idle':button('Стоп')
+        assert page.evaluate('kashaPlatform.phase()')=='idle';second=ready()
+        if page.evaluate('kashaPlatform.audioState().phase')!='idle':button('Стоп')
         tab('Главная');page.get_by_role('button',name='Отправить в проект',exact=True).wait_for(state='visible')
         button('Отправить в проект');click('button',re.compile('^Твой первый проект'));click('button',re.compile('^Отредактированная заметка'))
         wait(lambda:current() is None,'дополнение');snapshot=api('snapshot')

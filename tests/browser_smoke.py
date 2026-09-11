@@ -10,13 +10,13 @@ from contextlib import suppress
 from playwright.sync_api import sync_playwright
 
 BASE = 'http://127.0.0.1:8787'
-OUT = pathlib.Path(os.getenv('THIRDBRAIN_TEST_OUTPUT', 'test-output'))
+OUT = pathlib.Path(os.getenv('KASHA_TEST_OUTPUT', 'test-output'))
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / 'browser-result.json').unlink(missing_ok=True)
 
 
 def api(path, data=None):
-    request = urllib.request.Request(BASE + '/api/' + path, headers={'X-3rdBrain-Client': 'web'})
+    request = urllib.request.Request(BASE + '/api/' + path, headers={'X-Kasha-Client': 'web'})
     if data is not None:
         request.data = json.dumps(data).encode()
         request.add_header('Content-Type', 'application/json')
@@ -77,28 +77,28 @@ with sync_playwright() as p:
         page.screenshot(path=str(OUT / 'desktop-mobile-layout.png'))
 
         click_button('Записать')
-        page.wait_for_function('thirdBrainPlatform.phase() === "recording"')
+        page.wait_for_function('kashaPlatform.phase() === "recording"')
         page.wait_for_timeout(1600)
         click_button('Пауза')
-        page.wait_for_function('thirdBrainPlatform.phase() === "paused"')
+        page.wait_for_function('kashaPlatform.phase() === "paused"')
         click_button('Продолжить')
-        page.wait_for_function('thirdBrainPlatform.phase() === "recording"')
+        page.wait_for_function('kashaPlatform.phase() === "recording"')
         page.route('**/api/captures/audio', lambda route: route.abort())
         click_button('Готово')
-        page.wait_for_function('thirdBrainPlatform.phase() === "idle"')
-        wait_until(lambda: page.evaluate('thirdBrainPlatform.pending()'), 'аудио осталось в браузере')
+        page.wait_for_function('kashaPlatform.phase() === "idle"')
+        wait_until(lambda: page.evaluate('kashaPlatform.pending()'), 'аудио осталось в браузере')
         click_button('Понятно')
         assert {item['id'] for item in api('snapshot')['captures']} == initial_ids
         page.unroute('**/api/captures/audio')
         page.reload(wait_until='networkidle')
         page.get_by_role('button', name='Повторить отправку', exact=True).wait_for(state='visible')
-        assert page.evaluate('thirdBrainPlatform.phase()') == 'idle'
-        assert page.evaluate('thirdBrainPlatform.pending()') is True
+        assert page.evaluate('kashaPlatform.phase()') == 'idle'
+        assert page.evaluate('kashaPlatform.pending()') is True
 
         # Контрольная сумма сохранённых фрагментов до повторной отправки.
         pending_source = page.evaluate('''async () => {
             const db = await new Promise((resolve, reject) => {
-                const r = indexedDB.open('3rdbrain-audio-v1', 1);
+                const r = indexedDB.open('kasha-audio-v1', 1);
                 r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
             });
             try {
@@ -120,7 +120,7 @@ with sync_playwright() as p:
         assert saved.value.status == 201, saved.value.text()
         receipt = saved.value.json()
         assert receipt['id'] == pending_source['id']
-        wait_until(lambda: not page.evaluate('thirdBrainPlatform.pending()'), 'очередь очищена только после квитанции')
+        wait_until(lambda: not page.evaluate('kashaPlatform.pending()'), 'очередь очищена только после квитанции')
         capture = wait_until(lambda: capture_by_id(receipt['id']), 'запись опубликована сервером')
         wait_until(lambda: capture_by_id(capture['id'])['status'] == 'NEEDS_MODEL', 'явный статус отсутствующей модели')
         capture = capture_by_id(capture['id'])

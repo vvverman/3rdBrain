@@ -55,7 +55,7 @@ class RuntimeTest {
             assertEquals(HttpStatusCode.Forbidden, client.get("/api/snapshot") { header(HttpHeaders.Host, "evil.example:8787") }.status)
             assertEquals(HttpStatusCode.OK, client.get("/api/health").status)
             assertEquals(HttpStatusCode.Forbidden, client.post("/api/projects") { contentType(ContentType.Application.Json); setBody("""{"title":"X"}""") }.status)
-            assertEquals(HttpStatusCode.OK, client.post("/api/projects") { header("X-3rdBrain-Client", "web"); contentType(ContentType.Application.Json); setBody("""{"title":"X"}""") }.status)
+            assertEquals(HttpStatusCode.OK, client.post("/api/projects") { header("X-Kasha-Client", "web"); contentType(ContentType.Application.Json); setBody("""{"title":"X"}""") }.status)
         } finally { root.toFile().deleteRecursively() }
     }
     @Test fun subprocessTimeoutAndCancellationWork() = runBlocking<Unit> {

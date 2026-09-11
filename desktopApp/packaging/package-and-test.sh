@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 OUT="$PWD/macos-output"
-APP="$PWD/desktopApp/build/compose/binaries/main/app/3rdBrain.app"
+APP="$PWD/desktopApp/build/compose/binaries/main/app/Kasha.app"
 mkdir -p "$OUT"
 exec > >(tee -a "$OUT/packaging.log") 2>&1
 [ -d "$APP" ]
@@ -14,7 +14,7 @@ for name in whisper-cli llama-completion ffmpeg; do
  chmod 755 "$RES/bin/$name"
  test -x "$RES/bin/$name"
 done
-{ ls -l "$RES/bin"; cat "$APP/Contents/app/3rdBrain.cfg"; } > "$OUT/launcher-config.txt"
+{ ls -l "$RES/bin"; cat "$APP/Contents/app/Kasha.cfg"; } > "$OUT/launcher-config.txt"
 while IFS= read -r -d '' file; do
  if /usr/bin/file -b "$file" | grep -q 'Mach-O'; then
   /usr/bin/codesign --force --sign - --timestamp=none "$file"
@@ -33,7 +33,7 @@ import json, os, pathlib, signal, subprocess, sys, time
 app, out, fixture = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
 env = {'HOME':str(out/'clean-home'), 'PATH':'/usr/bin:/bin:/usr/sbin:/sbin', 'TMPDIR':sys.argv[4]}
 command = ['/usr/bin/sandbox-exec','-p','(version 1)(allow default)(deny network*)',
-           str(app/'Contents/MacOS/3rdBrain'),'--self-test',str(out/'self-test'),fixture]
+           str(app/'Contents/MacOS/Kasha'),'--self-test',str(out/'self-test'),fixture]
 with (out/'self-test.log').open('w') as log:
     process = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     started = time.monotonic()
@@ -62,7 +62,7 @@ print((out/'self-test.log').read_text(), flush=True)
 PY
 phase 'Настоящее окно приложения'
 env -i HOME="$TEST_HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin TMPDIR="${TMPDIR:-/tmp}" \
- THIRDBRAIN_HOME="$OUT/ui-data" "$APP/Contents/MacOS/3rdBrain" --ui-smoke "$OUT" > "$OUT/ui.log" 2>&1 &
+ KASHA_HOME="$OUT/ui-data" "$APP/Contents/MacOS/Kasha" --ui-smoke "$OUT" > "$OUT/ui.log" 2>&1 &
 PID=$!
 for n in {1..40}; do
  [ -f "$OUT/ui-ready.txt" ] && break
@@ -75,26 +75,26 @@ wait "$PID"
 phase 'Создание установочного образа'
 STAGE="$OUT/volume"
 mkdir -p "$STAGE"
-mv "$APP" "$STAGE/3rdBrain.app"
+mv "$APP" "$STAGE/Kasha.app"
 ln -s /Applications "$STAGE/Applications"
 cp desktopApp/packaging/Установка.txt "$STAGE/Установка.txt"
 # Обычное сжатие контейнера без изменения весов нейросетей.
-hdiutil create -volname '3rdBrain' -srcfolder "$STAGE" -ov -format UDZO -imagekey zlib-level=1 "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
+hdiutil create -volname 'Kasha' -srcfolder "$STAGE" -ov -format UDZO -imagekey zlib-level=1 "$OUT/Kasha-1.0.0-macOS-arm64.dmg"
 phase 'Проверка готового DMG'
-hdiutil verify "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
-(cd "$OUT" && shasum -a 256 3rdBrain-1.0.0-macOS-arm64.dmg > SHA256SUMS.txt)
+hdiutil verify "$OUT/Kasha-1.0.0-macOS-arm64.dmg"
+(cd "$OUT" && shasum -a 256 Kasha-1.0.0-macOS-arm64.dmg > SHA256SUMS.txt)
 MOUNT="$OUT/mounted"
 mkdir -p "$MOUNT"
-hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$OUT/3rdBrain-1.0.0-macOS-arm64.dmg"
-codesign --verify --deep --strict "$MOUNT/3rdBrain.app"
-test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/whisper-cli"
-test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/llama-completion"
-test -x "$MOUNT/3rdBrain.app/Contents/app/resources/bin/ffmpeg"
+hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$OUT/Kasha-1.0.0-macOS-arm64.dmg"
+codesign --verify --deep --strict "$MOUNT/Kasha.app"
+test -x "$MOUNT/Kasha.app/Contents/app/resources/bin/whisper-cli"
+test -x "$MOUNT/Kasha.app/Contents/app/resources/bin/llama-completion"
+test -x "$MOUNT/Kasha.app/Contents/app/resources/bin/ffmpeg"
 hdiutil detach "$MOUNT"
 python3 - <<'PY'
 import json, pathlib, platform
 out=pathlib.Path('macos-output')
-dmg=out/'3rdBrain-1.0.0-macOS-arm64.dmg'
+dmg=out/'Kasha-1.0.0-macOS-arm64.dmg'
 report={'passed':True,'file':dmg.name,'bytes':dmg.stat().st_size,'architecture':platform.machine(),
         'macOS':platform.mac_ver()[0],'bundledJava':True,'bundledModels':['Whisper Small','Qwen3-4B Q4_K_M'],
         'externalNetworkDeniedDuringInference':True,'developerIdSigned':False,'notarized':False,

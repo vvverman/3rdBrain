@@ -1,8 +1,8 @@
-# Проверка 3rdBrain Test 1.1.1 — 10 сентября 2026
+# Проверка Kasha Test 1.1.1 — 10 сентября 2026
 
 Программный коммит: **`630c95ff2bbddd2962333c5d0dc1707ae6452cbf`**. Отчёт добавлен следующим коммитом документации, не меняющим приложение.
 
-[macOS-сборка №34464474930](https://github.com/vvverman/3rdBrain/actions/runs/34464474930) и [Kotlin/Web №34464475039](https://github.com/vvverman/3rdBrain/actions/runs/34464475039) завершились успешно.
+macOS-сборка №34464474930 и Kotlin/Web №34464475039 завершились успешно.
 
 ## Проверенные изменения
 
@@ -32,13 +32,13 @@ ZIP с исходниками сборки прочитан; программн�
 
 ## Установщик
 
-**`3rdBrain-Test-1.1.1-macOS-arm64.dmg`** — **142 268 566 байт**, около **142,3 МБ**.
+**`Kasha-Test-1.1.1-macOS-arm64.dmg`** — **142 268 566 байт**, около **142,3 МБ**.
 
 SHA-256: **`44bb283c4ea8e1e55340d73a17c1b3801b090519f45458c89fc217606b22a0eb`**. Сумма извлечённого DMG совпала с `SHA256SUMS.txt` сборки и размером `BUILD-REPORT.json`.
 
-[Установщик](https://github.com/vvverman/3rdBrain/actions/runs/34464474930/artifacts/10146994433), артефакт `10146994433`, хранится до 10 октября 2026.
-[Отчёты macOS](https://github.com/vvverman/3rdBrain/actions/runs/34464474930/artifacts/10146993246).
-[Отчёты Web](https://github.com/vvverman/3rdBrain/actions/runs/34464475039/artifacts/10147055602).
+Установщик, артефакт `10146994433`, хранится до 10 октября 2026.
+Отчёты macOS.
+Отчёты Web.
 
 ## Ограничения
 

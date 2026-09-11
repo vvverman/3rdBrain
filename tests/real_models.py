@@ -14,7 +14,7 @@ OUT = Path('test-output/real-models'); OUT.mkdir(parents=True, exist_ok=True)
 def api(path, data=None, method=None):
     body = None if data is None else json.dumps(data, ensure_ascii=False).encode()
     req = urllib.request.Request(BASE + path, body, method=method, headers={
-        'X-3rdBrain-Client': 'web', 'Content-Type': 'application/json'})
+        'X-Kasha-Client': 'web', 'Content-Type': 'application/json'})
     with urllib.request.urlopen(req, timeout=30) as response: return json.load(response)
 
 def capture(cid):
@@ -35,7 +35,7 @@ def upload(path):
     body = (f'--{boundary}\r\nContent-Disposition: form-data; name="audio"; filename="voice.wav"\r\n'
             'Content-Type: audio/wav\r\n\r\n').encode() + path.read_bytes() + f'\r\n--{boundary}--\r\n'.encode()
     req = urllib.request.Request(BASE + 'captures/audio', body, headers={
-        'X-3rdBrain-Client':'web', 'X-Capture-Id':cid, 'Content-Type':'multipart/form-data; boundary=' + boundary})
+        'X-Kasha-Client':'web', 'X-Capture-Id':cid, 'Content-Type':'multipart/form-data; boundary=' + boundary})
     with urllib.request.urlopen(req, timeout=30) as response: assert json.load(response)['id'] == cid
     return cid
 

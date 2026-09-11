@@ -2,7 +2,7 @@
 # Сборка закреплённых локальных движков и проверенная загрузка весов. Без облачного inference.
 set -euo pipefail
 umask 077
-ROOT="${THIRDBRAIN_TOOLS_HOME:-$HOME/.3rdbrain-tools}"
+ROOT="${KASHA_TOOLS_HOME:-$HOME/.kasha-tools}"
 mkdir -p "$ROOT"
 ROOT=$(cd "$ROOT" && pwd)
 LOCK="$ROOT/.setup-lock"
@@ -11,7 +11,7 @@ trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
 for tool in git cmake curl ffmpeg; do
   command -v "$tool" >/dev/null || { echo "Не найден $tool. На Mac: brew install cmake ffmpeg. Затем повторите запуск." >&2; exit 1; }
 done
-JOBS="${THIRDBRAIN_BUILD_JOBS:-4}"
+JOBS="${KASHA_BUILD_JOBS:-4}"
 WHISPER_REV=306c88f4d1286aec1bf96e544632897886af5501
 LLAMA_REV=5266f24da75dc449bd56cbed7addb9c8e4a6a73e
 build_tool() {
@@ -50,11 +50,11 @@ fetch_model Qwen3-4B-Q4_K_M.gguf \
   7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5
 # Пути экранированы для bash, файл доступен только владельцу. Чужие модели не удаляем.
 {
-  printf 'export THIRDBRAIN_WHISPER_CLI=%q\n' "$ROOT/whisper.cpp-$WHISPER_REV/build/bin/whisper-cli"
-  printf 'export THIRDBRAIN_WHISPER_MODEL=%q\n' "$ROOT/models/ggml-small.bin"
-  printf 'export THIRDBRAIN_LLAMA_CLI=%q\n' "$ROOT/llama.cpp-$LLAMA_REV/build/bin/llama-completion"
-  printf 'export THIRDBRAIN_LLAMA_MODEL=%q\n' "$ROOT/models/Qwen3-4B-Q4_K_M.gguf"
-  printf 'export THIRDBRAIN_FFMPEG=%q\n' "$(command -v ffmpeg)"
+  printf 'export KASHA_WHISPER_CLI=%q\n' "$ROOT/whisper.cpp-$WHISPER_REV/build/bin/whisper-cli"
+  printf 'export KASHA_WHISPER_MODEL=%q\n' "$ROOT/models/ggml-small.bin"
+  printf 'export KASHA_LLAMA_CLI=%q\n' "$ROOT/llama.cpp-$LLAMA_REV/build/bin/llama-completion"
+  printf 'export KASHA_LLAMA_MODEL=%q\n' "$ROOT/models/Qwen3-4B-Q4_K_M.gguf"
+  printf 'export KASHA_FFMPEG=%q\n' "$(command -v ffmpeg)"
 } > "$ROOT/models.env.tmp"
 mv "$ROOT/models.env.tmp" "$ROOT/models.env"
 echo "Модели готовы. Настройки: $ROOT/models.env"

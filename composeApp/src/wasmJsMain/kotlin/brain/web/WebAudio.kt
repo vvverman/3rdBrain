@@ -17,8 +17,8 @@ class WebAudioGateway(private val baseUrl:String):AudioGateway {
     override fun stop(){stopAudio()}
     private fun checked(value:JsString){val text=value.toString();check(!text.startsWith("ERROR:")){"audioFailed"}}
 }
-private fun play(url:JsString,from:Double,rate:Double):Promise<JsString> = js("globalThis.thirdBrainPlatform.play(url, from, rate)")
-private fun stopAudio():Unit = js("globalThis.thirdBrainPlatform.stopAudio()")
-private fun pauseAudio():JsString = js("globalThis.thirdBrainPlatform.pauseAudio()")
-private fun resumeAudio():Promise<JsString> = js("globalThis.thirdBrainPlatform.resumeAudio()")
-private fun audioState():JsString = js("JSON.stringify(globalThis.thirdBrainPlatform.audioState())")
+private fun play(url:JsString,from:Double,rate:Double):Promise<JsString> = js("globalThis.kashaPlatform.play(url, from, rate)")
+private fun stopAudio():Unit = js("globalThis.kashaPlatform.stopAudio()")
+private fun pauseAudio():JsString = js("globalThis.kashaPlatform.pauseAudio()")
+private fun resumeAudio():Promise<JsString> = js("globalThis.kashaPlatform.resumeAudio()")
+private fun audioState():JsString = js("JSON.stringify(globalThis.kashaPlatform.audioState())")

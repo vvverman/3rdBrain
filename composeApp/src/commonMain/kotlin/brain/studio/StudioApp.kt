@@ -25,7 +25,7 @@ fun StudioApp(state: StudioState) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(Modifier.widthIn(max = 430.dp).fillMaxWidth().fillMaxHeight().padding(horizontal = 24.dp)) {
                     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("3rdBrain", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, letterSpacing = (-.4).sp)
+                        Text("Kasha", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, letterSpacing = (-.4).sp)
                         if (state.repository.simulated) Text(state.tr("demoBadge"), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
                     }
                     Box(Modifier.weight(1f).fillMaxWidth()) {

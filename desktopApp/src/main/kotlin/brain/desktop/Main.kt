@@ -13,9 +13,9 @@ import javax.swing.JOptionPane
 import kotlin.system.exitProcess
 
 fun main(args:Array<String>){
-    val resources=Path.of(System.getProperty("compose.application.resources.dir")?:System.getenv("THIRDBRAIN_BUNDLE_RESOURCES")?:"desktopApp/bundle-test/common").toAbsolutePath()
+    val resources=Path.of(System.getProperty("compose.application.resources.dir")?:System.getenv("KASHA_BUNDLE_RESOURCES")?:"desktopApp/bundle-test/common").toAbsolutePath()
     val demo=Files.exists(resources.resolve("demo-mode.txt"))
-    val name=if(demo)"3rdBrain Test" else "3rdBrain"
+    val name=if(demo)"Kasha Test" else "Kasha"
     System.setProperty("apple.awt.application.name",name)
     if("--self-test-demo" in args){
         try{val index=args.indexOf("--self-test-demo");runBlocking{StudioSelfTest.run(resources,Path.of(args[index+1]))};return}
@@ -25,7 +25,7 @@ fun main(args:Array<String>){
         try{val index=args.indexOf("--self-test");runBlocking{SelfTest.run(resources,Path.of(args[index+1]),Path.of(args[index+2]))};return}
         catch(e:Exception){e.printStackTrace();exitProcess(1)}
     }
-    val root=System.getenv("THIRDBRAIN_HOME")?.let(Path::of)?:Path.of(System.getProperty("user.home"),"Library","Application Support",name)
+    val root=System.getenv("KASHA_HOME")?.let(Path::of)?:Path.of(System.getProperty("user.home"),"Library","Application Support",name)
     val services=try{DesktopServices(root.toAbsolutePath(),resources)}catch(e:Exception){JOptionPane.showMessageDialog(null,e.message,name,JOptionPane.ERROR_MESSAGE);return}
     val smokeAt=args.indexOf("--ui-smoke")
     val smokeOutput=if(smokeAt>=0)Path.of(args[smokeAt+1])else null

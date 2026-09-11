@@ -12,8 +12,8 @@ else:
     connection.close()
     raise SystemExit('Изоляция сети не сработала')
 PY
-source "$THIRDBRAIN_TOOLS_HOME/models.env"
-export THIRDBRAIN_HOME=$(mktemp -d)
+source "$KASHA_TOOLS_HOME/models.env"
+export KASHA_HOME=$(mktemp -d)
 export HF_HUB_OFFLINE=1
 bash runtime/build/install/runtime/bin/runtime > models-runtime.log 2>&1 &
 PID=$!

@@ -143,11 +143,11 @@ class StudioDiskRepository(private val store: FileBrainStore, private val proces
 class LocalStudioIntelligence(private val env: Map<String, String>, private val root: Path,
     private val runner: CommandRunner = JvmCommandRunner()) : Intelligence {
     override val simulated = false
-    private val llm get() = LocalLlm(env.getValue("THIRDBRAIN_LLAMA_CLI"), env.getValue("THIRDBRAIN_LLAMA_MODEL"), root, runner)
+    private val llm get() = LocalLlm(env.getValue("KASHA_LLAMA_CLI"), env.getValue("KASHA_LLAMA_MODEL"), root, runner)
     override suspend fun transcribe(file: String, language: String, example: String): String {
         val dir = Files.createTempDirectory(root, ".transcribe-"); val output = dir.resolve("text")
         try {
-            runner.run(listOf(env.getValue("THIRDBRAIN_WHISPER_CLI"), "-m", env.getValue("THIRDBRAIN_WHISPER_MODEL"),
+            runner.run(listOf(env.getValue("KASHA_WHISPER_CLI"), "-m", env.getValue("KASHA_WHISPER_MODEL"),
                 "-f", file, "-l", "auto", "-otxt", "-of", output.toString()), 3600)
             return Files.readString(Path.of("$output.txt")).trim()
         } finally { dir.toFile().deleteRecursively() }

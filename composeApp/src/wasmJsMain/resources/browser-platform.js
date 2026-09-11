@@ -4,7 +4,7 @@
   let recorder=null,stream=null,player=null,writes=Promise.resolve(),stopped=null,context=null,analyser=null;
   let generation=0,openPromise;
   const db=()=>openPromise ||= new Promise((resolve,reject)=>{
-    const r=indexedDB.open('3rdbrain-audio-v1',1);
+    const r=indexedDB.open('kasha-audio-v1',1);
     r.onupgradeneeded=()=>{r.result.createObjectStore('sessions',{keyPath:'id'});r.result.createObjectStore('chunks',{keyPath:['id','index']});};
     r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
   });
@@ -27,7 +27,7 @@
     const blob=new Blob(chunks.map(x=>x.blob),{type:saved.mime});
     const form=new FormData();const ext=saved.mime.includes('mp4')?'m4a':saved.mime.includes('ogg')?'ogg':'webm';
     form.append('audio',blob,'capture.'+ext);
-    const response=await fetch(base+'/api/captures/audio',{method:'POST',headers:{'X-3rdBrain-Client':'web','X-Capture-Id':saved.id},body:form});
+    const response=await fetch(base+'/api/captures/audio',{method:'POST',headers:{'X-Kasha-Client':'web','X-Capture-Id':saved.id},body:form});
     const text=await response.text();if(!response.ok)throw Error(text);
     const receipt=JSON.parse(text);if(receipt.id!==saved.id)throw Error('Invalid recording receipt');
     const database=await db();
@@ -35,9 +35,9 @@
     return text;
   };
   const stopAudio=()=>{generation++;player?.pause();player=null;};
-  globalThis.thirdBrainPlatform={
+  globalThis.kashaPlatform={
     baseUrl:()=>location.port==='8080'?'http://127.0.0.1:8787':location.origin,
-    consent:()=>{try{return localStorage.getItem('thirdbrain.mic-consent')==='yes';}catch{return false;}},
+    consent:()=>{try{return localStorage.getItem('kasha.mic-consent')==='yes';}catch{return false;}},
     pending:async()=>(await all('sessions')).length>0&&(!recorder||recorder.state==='inactive'),
     phase:()=>recorder?.state==='recording'?'recording':recorder?.state==='paused'?'paused':'idle',
     level:()=>{
@@ -70,7 +70,7 @@
           own.onstop=async()=>{release();await writes;persistError?reject(persistError):resolve();};
           own.onerror=()=>{if(own.state!=='inactive')own.stop();else release();};
         });stopped.catch(()=>{});own.start(500);
-        try{localStorage.setItem('thirdbrain.mic-consent','yes');}catch{}
+        try{localStorage.setItem('kasha.mic-consent','yes');}catch{}
         return 'ok';
       }catch(e){release();return failure(e);}
     },

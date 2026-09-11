@@ -68,5 +68,5 @@ fetch_model Qwen3-4B-Q4_K_M.gguf https://huggingface.co/Qwen/Qwen3-4B-GGUF/resol
 curl -fL --retry 3 https://huggingface.co/Qwen/Qwen3-4B-GGUF/raw/bc640142c66e1fdd12af0bd68f40445458f3869b/LICENSE -o "$RES/licenses/Qwen3-Apache-2.0.txt"
 grep -q 'Apache License' "$RES/licenses/Qwen3-Apache-2.0.txt"
 cp "$RES/licenses/whisper.cpp.txt" "$RES/licenses/Whisper-model-MIT.txt"
-printf '3rdBrain bundles unmodified Whisper Small and Qwen3-4B Q4_K_M.\nFFmpeg is a separate LGPL executable; its source and build configuration are included.\nJava: Eclipse Temurin 21, GPLv2 with Classpath Exception, licenses in runtime/legal.\nCompose/Kotlin/Ktor: Apache-2.0; library notices retained inside their JARs.\n' > "$RES/licenses/NOTICE.txt"
+printf 'Kasha bundles unmodified Whisper Small and Qwen3-4B Q4_K_M.\nFFmpeg is a separate LGPL executable; its source and build configuration are included.\nJava: Eclipse Temurin 21, GPLv2 with Classpath Exception, licenses in runtime/legal.\nCompose/Kotlin/Ktor: Apache-2.0; library notices retained inside their JARs.\n' > "$RES/licenses/NOTICE.txt"
 cp desktopApp/packaging/Установка.txt "$RES/Установка.txt"

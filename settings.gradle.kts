@@ -4,5 +4,5 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
-rootProject.name = "3rdBrain"
+rootProject.name = "Kasha"
 include(":shared", ":composeApp", ":runtime", ":desktopApp")

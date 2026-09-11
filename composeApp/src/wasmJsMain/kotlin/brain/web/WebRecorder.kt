@@ -9,7 +9,7 @@ import kotlin.js.*
 
 fun runtimeBaseUrl():String=platformBase().toString()
 fun browserLanguage():String=platformLanguage().toString()
-private fun platformBase():JsString=js("globalThis.thirdBrainPlatform.baseUrl()")
+private fun platformBase():JsString=js("globalThis.kashaPlatform.baseUrl()")
 private fun platformLanguage():JsString=js("navigator.language || 'en'")
 class BrowserRecorder(private val baseUrl:String):RecorderGateway {
     private val json=Json{ignoreUnknownKeys=true}
@@ -24,12 +24,12 @@ class BrowserRecorder(private val baseUrl:String):RecorderGateway {
     override suspend fun recoverPending():Capture=json.decodeFromString(checked(recoverRecorder(baseUrl.toJsString()).await()))
     private fun checked(value:JsString):String=value.toString().also{check(!it.startsWith("ERROR:")){"audioFailed"}}
 }
-private fun consent():Boolean=js("globalThis.thirdBrainPlatform.consent()")
-private fun pending():Promise<JsString> = js("globalThis.thirdBrainPlatform.pending().then(v => String(v))")
-private fun recorderPhase():JsString=js("globalThis.thirdBrainPlatform.phase()")
-private fun recorderLevel():Double=js("globalThis.thirdBrainPlatform.level()")
-private fun startRecorder():Promise<JsString> = js("globalThis.thirdBrainPlatform.start()")
-private fun pauseRecorder():JsString=js("globalThis.thirdBrainPlatform.pause()")
-private fun resumeRecorder():JsString=js("globalThis.thirdBrainPlatform.resume()")
-private fun stopRecorder(base:JsString):Promise<JsString> = js("globalThis.thirdBrainPlatform.stop(base)")
-private fun recoverRecorder(base:JsString):Promise<JsString> = js("globalThis.thirdBrainPlatform.recover(base)")
+private fun consent():Boolean=js("globalThis.kashaPlatform.consent()")
+private fun pending():Promise<JsString> = js("globalThis.kashaPlatform.pending().then(v => String(v))")
+private fun recorderPhase():JsString=js("globalThis.kashaPlatform.phase()")
+private fun recorderLevel():Double=js("globalThis.kashaPlatform.level()")
+private fun startRecorder():Promise<JsString> = js("globalThis.kashaPlatform.start()")
+private fun pauseRecorder():JsString=js("globalThis.kashaPlatform.pause()")
+private fun resumeRecorder():JsString=js("globalThis.kashaPlatform.resume()")
+private fun stopRecorder(base:JsString):Promise<JsString> = js("globalThis.kashaPlatform.stop(base)")
+private fun recoverRecorder(base:JsString):Promise<JsString> = js("globalThis.kashaPlatform.recover(base)")

@@ -16,24 +16,24 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "brain.desktop.MainKt"
-        jvmArgs += listOf("-Xmx768m", "-Dfile.encoding=UTF-8", "-Dapple.awt.application.name=3rdBrain")
+        jvmArgs += listOf("-Xmx768m", "-Dfile.encoding=UTF-8", "-Dapple.awt.application.name=Kasha")
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
-            packageName = if(demoBuild) "3rdBrain Test" else "3rdBrain"
-            packageVersion = "1.1.3"
+            packageName = if(demoBuild) "Kasha Test" else "Kasha"
+            packageVersion = "1.1.4"
             vendor = "Vyacheslav Verman"
             description = if(demoBuild) "Тест интерфейса, ИИ имитируется" else "Локальные голосовые заметки"
             includeAllModules = true
             appResourcesRootDir.set(layout.projectDirectory.dir(if(demoBuild) "bundle-test" else "bundle"))
             macOS {
-                bundleID = if(demoBuild) "ru.vrmn.thirdbrain.test" else "ru.vrmn.thirdbrain"
-                dockName = if(demoBuild) "3rdBrain Test" else "3rdBrain"
+                bundleID = if(demoBuild) "ru.vrmn.kasha.test" else "ru.vrmn.kasha"
+                dockName = if(demoBuild) "Kasha Test" else "Kasha"
                 minimumSystemVersion = "13.3"
                 appCategory = "public.app-category.productivity"
-                iconFile.set(layout.projectDirectory.file("packaging/3rdBrain.icns"))
+                iconFile.set(layout.projectDirectory.file("packaging/Kasha.icns"))
                 infoPlist {
                     extraKeysRawXml = """
-                        <key>NSMicrophoneUsageDescription</key><string>3rdBrain записывает ваш голос локально. В тестовой версии текст ИИ является примером.</string>
+                        <key>NSMicrophoneUsageDescription</key><string>Kasha записывает ваш голос локально. В тестовой версии текст ИИ является примером.</string>
                         <key>NSHighResolutionCapable</key><true/>
                         <key>CFBundleDevelopmentRegion</key><string>en</string>
                         <key>CFBundleLocalizations</key><array><string>ru</string><string>en</string><string>es</string><string>fr</string><string>de</string><string>uk</string><string>be</string><string>kk</string></array>

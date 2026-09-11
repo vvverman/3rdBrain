@@ -1,10 +1,10 @@
-# Проверки 3rdBrain Test 1.1.2 — 10 сентября 2026
+# Проверки Kasha Test 1.1.2 — 10 сентября 2026
 
 Программный коммит: **`ae2a6dbada0232cdb301a48d33234fa490b9dedc`**.
 
-- macOS build/self-test: [run 34522064350](https://github.com/vvverman/3rdBrain/actions/runs/34522064350)
-- общий код и браузерный путь: [run 34522064501](https://github.com/vvverman/3rdBrain/actions/runs/34522064501)
-- установщик: [artifact 10170130075](https://github.com/vvverman/3rdBrain/actions/runs/34522064350/artifacts/10170130075)
+- macOS build/self-test: run 34522064350
+- общий код и браузерный путь: run 34522064501
+- установщик: artifact 10170130075
 
 Оба финальных прогона завершились успешно.
 
@@ -24,7 +24,7 @@
 
 ## macOS-пакет
 
-Файл: **`3rdBrain-Test-1.1.2-macOS-arm64.dmg`**.
+Файл: **`Kasha-Test-1.1.2-macOS-arm64.dmg`**.
 
 Размер: **142 719 380 байт**.
 SHA-256: **`7c8113a0886767fc06b605e2cdbb01b34482c4ce2e9f7b9fa97e2d921ccf538c`**.

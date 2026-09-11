@@ -39,7 +39,7 @@ class DesktopRecorder(private val root:Path,private val store:FileBrainStore,pri
         try{
             val writer=WavJournal(pending.resolve("${UUID.randomUUID()}.wav"),actual.format.sampleRate.toInt());journal=writer
             input=actual;running=true;actual.start();currentPhase="recording";Files.writeString(consentFile,"yes")
-            worker=thread(name="3rdBrain-microphone",isDaemon=true){
+            worker=thread(name="Kasha-microphone",isDaemon=true){
                 try{
                     val buffer=ByteArray(2048);var syncedAt=System.nanoTime()
                     while(running){
