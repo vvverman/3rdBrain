@@ -2,6 +2,7 @@ package brain.domain
 
 import brain.model.Project
 import kotlinx.serialization.json.*
+import kotlin.math.ceil
 
 /** Запросы и проверки текста одинаковы для всех платформ и не зависят от конкретного LLM-движка. */
 object LocalModelText {
@@ -36,8 +37,17 @@ object LocalModelText {
         }}
     """.trimIndent()
 
+    private fun normalize(word: String) = word.lowercase().replace('ё', 'е')
+
     private fun words(text: String) = Regex("""[\p{L}]{4,}""", RegexOption.IGNORE_CASE).findAll(text)
-        .map { it.value.lowercase().replace('ё', 'е').take(5) }.toSet()
+        .map { normalize(it.value).take(5) }.toSet()
+
+    /**
+     * Консервативная эвристика для имён/названий: слова с прописной буквы длиной >= 3.
+     * Даже если это начало предложения, сохранить такое слово безопаснее, чем разрешить модели его потерять.
+     */
+    private fun names(text: String) = Regex("""[\p{Lu}][\p{L}'’\-]{2,}""").findAll(text)
+        .map { normalize(it.value) }.toSet()
 
     private val negations = setOf(
         // Русский
@@ -51,7 +61,7 @@ object LocalModelText {
         // Deutsch
         "nicht", "kein", "keine", "keinen", "keinem", "keiner", "keines", "nie", "ohne",
         // Українська
-        "ні", "немає", "нема", "ніколи", "не можна",
+        "ні", "немає", "нема", "ніколи",
         // Беларуская
         "няма", "нельга", "ніколі",
         // Қазақша
@@ -66,11 +76,24 @@ object LocalModelText {
     fun requirePreserved(original: String, edited: String) {
         fun numbers(text: String) = Regex("[0-9]+(?:[.,][0-9]+)*").findAll(text).map { it.value }.sorted().toList()
         fun negatives(text: String) = Regex("""[\p{L}]+""", RegexOption.IGNORE_CASE).findAll(text)
-            .map { it.value.lowercase() }.filter { it in negations }.sorted().toList()
+            .map { normalize(it.value) }.filter { it in negations }.sorted().toList()
+        fun allWords(text: String) = Regex("""[\p{L}]{3,}""", RegexOption.IGNORE_CASE).findAll(text)
+            .map { normalize(it.value) }.toSet()
+
         require(numbers(original) == numbers(edited)) { "Модель изменила числа. Оставлен исходный текст" }
         require(negatives(original) == negatives(edited)) { "Модель изменила отрицания. Оставлен исходный текст" }
-        val before = words(original); val after = words(edited)
-        require(before.isEmpty() || before.intersect(after).size.toDouble() / before.size >= 0.85) {
+
+        val editedWords = allWords(edited)
+        val missingNames = names(original).filterNot { it in editedWords }
+        require(missingNames.isEmpty()) { "Модель потеряла имя или важное название. Оставлен исходный текст" }
+
+        val before = words(original)
+        val after = words(edited)
+        val missing = before - after
+        // На длинном тексте это те же ~15%. На короткой заметке разрешаем заменить до двух
+        // содержательных слов: этого достаточно для «какая-то фигня» → «проблема», но не для пересказа.
+        val allowedMissing = maxOf(2, ceil(before.size * 0.15).toInt())
+        require(before.isEmpty() || missing.size <= allowedMissing) {
             "Модель пропустила значительную часть исходного текста. Оставлен полный транскрипт"
         }
     }
