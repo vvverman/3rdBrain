@@ -1,4 +1,4 @@
-"""Только сборка: закреплённый OFL-шрифт, статические начертания и проверка восьми алфавитов."""
+"""Сборка ресурсов Kasha: закреплённый OFL-шрифт Wix Madefor и проверка всех языков интерфейса."""
 import hashlib
 import io
 from pathlib import Path
@@ -7,22 +7,44 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = 'https://raw.githubusercontent.com/google/fonts/142c8963e7606b510c93a644c82a4c4cdeae6ef9/ofl/onest/'
+GOOGLE_FONTS_COMMIT = '8e44913e4ff26fc997e6856c1ec40ff4791c98c5'
+BASE = f'https://raw.githubusercontent.com/google/fonts/{GOOGLE_FONTS_COMMIT}/ofl/'
 resources = ROOT / 'composeApp/src/commonMain/composeResources'
 (resources / 'font').mkdir(parents=True, exist_ok=True)
 (resources / 'files/licenses').mkdir(parents=True, exist_ok=True)
-with urlopen(BASE + 'Onest%5Bwght%5D.ttf', timeout=60) as response:
-    data = response.read()
-assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == '477cb31027450d80e486a53119641bf87dde3d4c'
-font = TTFont(io.BytesIO(data))
+
 required = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюяІіЇїЄєҐґЎўӘәҒғҚқҢңӨөҰұҮүҺһÑñÁáÉéÍíÓóÚúÜüÇçÀàÂâÊêËëÎîÏïÔôÙùÛûŸÿŒœÄäÖöß')
-missing = sorted(ord(char) for char in required if ord(char) not in font.getBestCmap())
-assert not missing, f'Onest lacks required glyphs: {missing}'
-for name, weight in [('regular', 400), ('medium', 500), ('semibold', 600)]:
-    instance = instantiateVariableFont(TTFont(io.BytesIO(data)), {'wght': weight}, inplace=True)
-    instance.save(resources / f'font/onest_{name}.ttf')
-with urlopen(BASE + 'OFL.txt', timeout=60) as response:
-    license_data = response.read()
-assert hashlib.sha1(b'blob ' + str(len(license_data)).encode() + b'\0' + license_data).hexdigest() == 'b6f4f91487900bb8f00ae991724121f1d59e30d9'
-(resources / 'files/licenses/Onest-OFL.txt').write_bytes(license_data)
-print('Onest: 3 начертания, все 8 алфавитов проверены')
+
+def blob_sha(data: bytes) -> str:
+    return hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
+
+def load(url: str, expected: str) -> bytes:
+    with urlopen(url, timeout=60) as response:
+        data = response.read()
+    assert blob_sha(data) == expected, f'Unexpected font blob for {url}'
+    return data
+
+def verify(data: bytes, name: str) -> None:
+    font = TTFont(io.BytesIO(data))
+    missing = sorted(ord(char) for char in required if ord(char) not in font.getBestCmap())
+    assert not missing, f'{name} lacks required glyphs: {missing}'
+
+text_files = {
+    'wix_madefor_text_regular.ttf': ('WixMadeforText-Regular.ttf', 'a3e2b40028cc2abfd0cc4323540a9c68f8bb91e2'),
+    'wix_madefor_text_medium.ttf': ('WixMadeforText-Medium.ttf', '33bcae00135309a5b2d34f6b750605168d73f1db'),
+    'wix_madefor_text_semibold.ttf': ('WixMadeforText-SemiBold.ttf', '59587a8aaa8a2a11018b8dfaf3a5f3da18b603c8'),
+}
+for target, (source, sha) in text_files.items():
+    data = load(BASE + 'wixmadefortext/' + source, sha)
+    verify(data, source)
+    (resources / 'font' / target).write_bytes(data)
+
+# Display используется только для крупных заголовков/брендинга; 600 сохраняет спокойный Apple-like характер.
+display_variable = load(BASE + 'wixmadefordisplay/WixMadeforDisplay%5Bwght%5D.ttf', '92c56bef536e11285f052fa6b55229db5c09b5bb')
+verify(display_variable, 'Wix Madefor Display')
+display = instantiateVariableFont(TTFont(io.BytesIO(display_variable)), {'wght': 600}, inplace=True)
+display.save(resources / 'font/wix_madefor_display_semibold.ttf')
+
+license_data = load(BASE + 'wixmadefortext/OFL.txt', 'b7dfd2a1ca20e15ce1b1d5ec7166545730e3b1ce')
+(resources / 'files/licenses/Wix-Madefor-OFL.txt').write_bytes(license_data)
+print('Wix Madefor: Text 400/500/600 + Display 600; Cyrillic and all 8 Kasha alphabets verified')
