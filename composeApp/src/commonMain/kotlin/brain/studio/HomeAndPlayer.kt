@@ -2,11 +2,9 @@ package brain.studio
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
@@ -55,9 +53,9 @@ internal fun HomeScreen(s: StudioState) {
                     enabled = s.text.isNotBlank() && !s.busy && s.current?.audioFinalized == true)
             }
         }
-        else -> Column(Modifier.fillMaxSize().padding(top = 16.dp, bottom = 10.dp)) {
-            KashaBrandSlot(Modifier.fillMaxWidth().height(116.dp))
-            Spacer(Modifier.height(14.dp))
+        else -> Column(Modifier.fillMaxSize().padding(top = 10.dp, bottom = 10.dp)) {
+            KashaBrandSlot(Modifier.fillMaxWidth().height(164.dp))
+            Spacer(Modifier.height(8.dp))
             Text(s.tr("emptyTitle"), style = MaterialTheme.typography.displayMedium, letterSpacing = (-1.2).sp)
             Spacer(Modifier.height(12.dp))
             Text(s.tr("emptyBody"), style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant, modifier = Modifier.widthIn(max = 270.dp))
@@ -112,9 +110,11 @@ internal fun GlobalPlayer(s: StudioState) {
             }
         }
         if (!s.recording && loaded?.audioFinalized == true) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Text("${s.playbackRate}×", Modifier.clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { scope.launch { s.changePlaybackRate() } }
-                .semantics { contentDescription = s.tr("speed") }.padding(horizontal = 10.dp, vertical = 6.dp),
-                style = MaterialTheme.typography.labelSmall, color = c.onSurfaceVariant)
+            KashaQuietButton(
+                "${s.playbackRate}×",
+                { scope.launch { s.changePlaybackRate() } },
+                Modifier.semantics { contentDescription = s.tr("speed") },
+            )
         }
     }
 }
