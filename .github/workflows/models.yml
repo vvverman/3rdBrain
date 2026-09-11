@@ -11,20 +11,22 @@ concurrency:
 jobs:
   real-models:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       KASHA_TOOLS_HOME: ${{ github.workspace }}/.local-models
     steps:
       - uses: actions/checkout@v4
-      - name: Проверка бренда
-        run: python3 scripts/check-brand-boundary.py
+      - name: Проверка границ Kasha
+        run: |
+          python3 scripts/check-brand-boundary.py
+          python3 scripts/check-local-only.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.14.5'
+          gradle-version: '9.3.1'
       - name: Системные инструменты
         run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg cmake
       - uses: actions/cache/restore@v4
@@ -44,7 +46,7 @@ jobs:
           path: .local-models
           key: kasha-local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
       - name: Сборка и модульные тесты
-        run: gradle --no-build-cache :shared:jvmTest :composeApp:jvmTest :runtime:test :runtime:installDist
+        run: gradle --no-build-cache :kashaCore:jvmTest :composeApp:jvmTest :runtime:test :runtime:installDist
       - name: Тестовый голос, не зависимость приложения
         run: |
           python -m pip install piper-tts==1.4.2
@@ -60,7 +62,7 @@ jobs:
             models-runtime.log
             real-models.log
             test-output/real-models
-            shared/build/test-results
+            kashaCore/build/test-results
             composeApp/build/test-results
             runtime/build/test-results
           retention-days: 7
