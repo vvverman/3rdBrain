@@ -9,7 +9,7 @@ Kasha UI — единственный продуктовый UI-слой Kasha �
 `MaterialTheme` используется как контейнер токенов цвета и типографики. CI запускает `scripts/check-ui-boundary.py` и запрещает:
 
 - базовые Material-контролы вне Kasha UI;
-- Material Icons, SF Symbols, Lucide и другие параллельные icon packs;
+- Material Icons, SF Symbols, Phosphor, Lucide и другие сторонние icon packs;
 - возврат старых `BrainUi` / `BrainNavigation`.
 
 ## Компоненты
@@ -18,7 +18,7 @@ Kasha UI — единственный продуктовый UI-слой Kasha �
 - `KashaIconButton` — компактное действие;
 - `KashaQuietButton` — тихое текстовое действие;
 - `KashaField` — общее поле ввода/read-only;
-- `KashaEditableNote` — название + тело заметки;
+- `KashaNoteText` — единый редактор заметки или текста задачи; отдельного title-поля нет;
 - `KashaSwitchRow`;
 - `KashaSlider`;
 - `KashaPanel`;
@@ -28,14 +28,19 @@ Kasha UI — единственный продуктовый UI-слой Kasha �
 - `KashaProcessingRing`;
 - `KashaCaptureMark`;
 - `KashaSortBar`;
-- `KashaDestinationSwitch`;
 - `KashaReorderableList` — manual order через long-press + drag.
 
-`KashaSortBar` и `KashaDestinationSwitch` — взаимоисключающие segmented controls. В Compose они объявлены через `selectableGroup` + `selectable` с `Role.RadioButton` и публикуют выбранное состояние, а не являются набором обычных кнопок.
+`KashaSortBar` — segmented control через `selectableGroup` + `selectable` с выбранным состоянием, а не набор независимых обычных кнопок.
+
+## Заметка
+
+Заметка визуально является одним текстовым документом. Первая непустая строка автоматически используется как название в списках и header, остальные строки — тело. Пользователь не синхронизирует два отдельных поля и не редактирует title отдельно.
 
 ## Иконки
 
-Единственный продуктовый источник геометрии — Phosphor. Для motion используются открытые MIT-реализации animated Phosphor, зафиксированные в `third_party`. Иконка в состоянии покоя остаётся Phosphor; анимация запускается только как реакция на взаимодействие и не должна быть постоянным декором.
+`Kasha Icons` — собственный небольшой набор на Compose Canvas. Геометрия и короткий motion живут в одном файле `ui/KashaIcons.kt`. Сторонняя библиотека иконок не является частью runtime.
+
+Motion запускается на hover/press/focus/drag или явном изменении состояния. Движение короткое и функциональное: send двигается по направлению отправки, gear поворачивается, стрелки смещаются в направлении перехода и т. п.
 
 ## Типографика и тема
 
@@ -44,7 +49,7 @@ Kasha UI — единственный продуктовый UI-слой Kasha �
 - сборка автоматически проверяет кириллицу и все восемь языков Kasha, включая казахские `Ә Ғ Қ Ң Ө Ұ Ү Һ`;
 - основной текст 15–17sp;
 - нижняя навигация и вспомогательные подписи не меньше 11sp;
-- display scale ограничен 46sp, чтобы не быть desktop-only;
+- display scale ограничен 46sp;
 - light — почти белый с едва жёлтым/бумажным смещением;
 - dark — почти чёрный с едва коричневым смещением.
 
