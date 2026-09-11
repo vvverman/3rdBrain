@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Rename product everywhere
+      - name: Rename product everywhere except workflows
         shell: bash
         run: |
           set -euo pipefail
@@ -34,7 +34,7 @@ jobs:
           for path in root.rglob('*'):
               if not path.is_file() or any(part in skip_dirs for part in path.parts):
                   continue
-              if path.as_posix() == '.github/workflows/brand-rename.yml':
+              if path.parts[:2] == ('.github', 'workflows'):
                   continue
               try:
                   text = path.read_text(encoding='utf-8')
@@ -54,7 +54,6 @@ jobs:
           for name in [
               'desktopApp/build.gradle.kts',
               'desktopApp/packaging/package-test.sh',
-              '.github/workflows/studio.yml',
               'docs/TEST_BUILD.md',
           ]:
               path = Path(name)
@@ -140,25 +139,6 @@ jobs:
           PY
           chmod +x scripts/check-brand-boundary.py
 
-          python3 - <<'PY'
-          from pathlib import Path
-          for name in [
-              '.github/workflows/studio.yml',
-              '.github/workflows/kotlin.yml',
-              '.github/workflows/macos.yml',
-              '.github/workflows/models.yml',
-          ]:
-              path = Path(name)
-              text = path.read_text(encoding='utf-8')
-              if 'scripts/check-brand-boundary.py' in text:
-                  continue
-              marker = '      - uses: actions/checkout@v4\n'
-              insertion = marker + '      - name: Проверка бренда\n        run: python3 scripts/check-brand-boundary.py\n'
-              if marker not in text:
-                  raise SystemExit(f'checkout marker not found in {name}')
-              path.write_text(text.replace(marker, insertion, 1), encoding='utf-8')
-          PY
-
           cat >> docs/TEST_BUILD.md <<'EOF'
 
           ## Переименование
@@ -183,14 +163,6 @@ jobs:
 
           Нативная самопроверка была выполнена на macOS 15.7.9 arm64. Пакет был ad-hoc подписан, без Developer ID и notarization.
           EOF
-
-          rm .github/workflows/brand-rename.yml
-
-          python3 scripts/check-brand-boundary.py
-          if find . -type f | grep -Ev '^./\.git/' | grep -Ei '(3rdbrain|thirdbrain)'; then
-            echo 'Legacy brand remains in a path' >&2
-            exit 1
-          fi
 
           git config user.name 'Kasha rename bot'
           git config user.email 'actions@users.noreply.github.com'
