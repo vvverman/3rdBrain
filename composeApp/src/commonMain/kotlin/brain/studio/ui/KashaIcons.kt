@@ -17,6 +17,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /** Небольшой собственный набор Kasha. Никаких внешних icon packs в runtime. */
 enum class Glyph {
@@ -139,11 +142,11 @@ fun KashaIcon(
             Glyph.SETTINGS -> {
                 circle(12f, 12f, 3.1f)
                 repeat(8) { i ->
-                    val a = Math.toRadians((i * 45.0))
-                    val x1 = 12f + kotlin.math.cos(a).toFloat() * 5.2f
-                    val y1 = 12f + kotlin.math.sin(a).toFloat() * 5.2f
-                    val x2 = 12f + kotlin.math.cos(a).toFloat() * 8f
-                    val y2 = 12f + kotlin.math.sin(a).toFloat() * 8f
+                    val a = i * 45.0 * PI / 180.0
+                    val x1 = 12f + cos(a).toFloat() * 5.2f
+                    val y1 = 12f + sin(a).toFloat() * 5.2f
+                    val x2 = 12f + cos(a).toFloat() * 8f
+                    val y2 = 12f + sin(a).toFloat() * 8f
                     line(x1, y1, x2, y2)
                 }
             }
