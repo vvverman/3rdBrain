@@ -51,7 +51,6 @@ jobs:
           if old_launch.exists():
               old_launch.rename(new_launch)
 
-          # Current test package becomes 1.1.4.
           for name in [
               'desktopApp/build.gradle.kts',
               'desktopApp/packaging/package-test.sh',
@@ -62,8 +61,6 @@ jobs:
               text = path.read_text(encoding='utf-8')
               path.write_text(text.replace('1.1.3', '1.1.4'), encoding='utf-8')
 
-          # Historical GitHub links point at the repository's old slug after the text rename;
-          # keep the visible evidence identifiers but remove those stale links from docs.
           for path in [Path('README.md'), *Path('docs').rglob('*.md')]:
               if not path.exists():
                   continue
@@ -108,9 +105,6 @@ jobs:
           Документы: `docs/SPEC.md`, `docs/BRAIN_UI.md`, `docs/TEST_BUILD.md`.
           EOF
 
-          # Remove heredoc indentation introduced by YAML block indentation.
-          sed -i 's/^          //' README.md
-
           cat > scripts/check-brand-boundary.py <<'PY'
           #!/usr/bin/env python3
           from pathlib import Path
@@ -144,7 +138,6 @@ jobs:
               sys.exit(1)
           print('Brand boundary: OK')
           PY
-          sed -i 's/^          //' scripts/check-brand-boundary.py
           chmod +x scripts/check-brand-boundary.py
 
           python3 - <<'PY'
@@ -166,16 +159,13 @@ jobs:
               path.write_text(text.replace(marker, insertion, 1), encoding='utf-8')
           PY
 
-          # Make current test notes explicit about the new app identity.
           cat >> docs/TEST_BUILD.md <<'EOF'
 
           ## Переименование
 
           В 1.1.4 продукт называется **Kasha**. Тестовое macOS-приложение — **Kasha Test**, данные — `~/Library/Application Support/Kasha Test`, bundle ID — `ru.vrmn.kasha.test`. Служебные переменные окружения используют префикс `KASHA_`.
           EOF
-          sed -i 's/^          //' docs/TEST_BUILD.md
 
-          # Replace the historical 1.1.3 verification note with a brand-neutral record.
           cat > docs/VERIFICATION_1_1_3.md <<'EOF'
           # Проверки Kasha Test 1.1.3 — 11 сентября 2026
 
@@ -193,13 +183,11 @@ jobs:
 
           Нативная самопроверка была выполнена на macOS 15.7.9 arm64. Пакет был ad-hoc подписан, без Developer ID и notarization.
           EOF
-          sed -i 's/^          //' docs/VERIFICATION_1_1_3.md
 
-          # This one-off workflow must not survive in the final tree.
           rm .github/workflows/brand-rename.yml
 
           python3 scripts/check-brand-boundary.py
-          if find . -type f | grep -Eiv '^./\.git/' | grep -Ei '(3rdbrain|thirdbrain)'; then
+          if find . -type f | grep -Ev '^./\.git/' | grep -Ei '(3rdbrain|thirdbrain)'; then
             echo 'Legacy brand remains in a path' >&2
             exit 1
           fi
