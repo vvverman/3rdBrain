@@ -1,6 +1,7 @@
 package brain.domain
 
 import brain.model.*
+import kotlinx.datetime.TimeZone
 import kotlinx.serialization.Serializable
 
 /**
@@ -65,7 +66,9 @@ data class BrainData(
 
     fun updateNote(id: String, update: NoteUpdate, now: Long): BrainData {
         val old = notes.firstOrNull { it.id == id } ?: error("Заметка не найдена")
-        val changed = old.copy(title = update.title.trim().ifBlank { "Без названия" }, body = update.body, updatedAt = now)
+        require(update.body.isNotBlank()) { "Введите текст заметки" }
+        val body = update.body.trimEnd()
+        val changed = old.copy(title = NoteText.title(body), body = body, updatedAt = now)
         return copy(notes = notes.map { if (it.id == id) changed else it })
     }
 
@@ -92,15 +95,60 @@ data class BrainData(
     fun updateTask(id: String, update: TaskUpdate, now: Long): BrainData {
         val old = tasks.firstOrNull { it.id == id } ?: error("Задача не найдена")
         require(update.text.isNotBlank()) { "Введите текст задачи" }
-        val changed = old.copy(text = update.text.trim(), updatedAt = now)
+        val changed = old.copy(text = update.text.trimEnd(), updatedAt = now)
         return copy(tasks = tasks.map { if (it.id == id) changed else it })
     }
 
+    fun rescheduleTask(id: String, update: TaskScheduleUpdate, now: Long): BrainData {
+        val old = tasks.firstOrNull { it.id == id } ?: error("Задача не найдена")
+        require(!old.completed) { "Выполненная задача уже в архиве" }
+        require(update.dueAt > now) { "Срок должен быть в будущем" }
+        val changed = old.copy(
+            dueAt = update.dueAt,
+            nextReminderAt = update.dueAt,
+            reminderRepeat = update.reminderRepeat,
+            updatedAt = now,
+        )
+        return copy(tasks = tasks.map { if (it.id == id) changed else it })
+    }
+
+    fun completeTask(id: String, now: Long): BrainData {
+        val old = tasks.firstOrNull { it.id == id } ?: error("Задача не найдена")
+        if (old.completed) return this
+        return copy(tasks = tasks.map {
+            if (it.id == id) old.copy(completedAt = now, nextReminderAt = 0, updatedAt = now) else it
+        })
+    }
+
+    fun deleteTask(id: String): BrainData {
+        require(tasks.any { it.id == id }) { "Задача не найдена" }
+        return copy(tasks = tasks.filterNot { it.id == id })
+    }
+
     fun orderTasks(ids: List<String>): BrainData {
-        val existing = tasks.map { it.id }.toSet()
-        require(ids.size == existing.size && ids.toSet() == existing) { "Ручной порядок должен включать все задачи ровно один раз" }
+        val active = tasks.filterNot { it.completed }.map { it.id }.toSet()
+        require(ids.size == active.size && ids.toSet() == active) { "Ручной порядок должен включать все активные задачи ровно один раз" }
         val orders = ids.withIndex().associate { it.value to it.index }
-        return copy(tasks = tasks.map { it.copy(manualOrder = orders.getValue(it.id)) })
+        return copy(tasks = tasks.map { task -> orders[task.id]?.let { task.copy(manualOrder = it) } ?: task })
+    }
+
+    /**
+     * Атомарно забирает напоминания, срок которых наступил. Одновременно переносит
+     * просроченный срок на следующий день в то же локальное время и назначает
+     * следующее напоминание по выбранной пользователем частоте.
+     */
+    fun claimDueReminders(now: Long, zoneId: String): Pair<BrainData, List<Task>> {
+        val due = tasks.filter { !it.completed && it.nextReminderAt > 0 && it.nextReminderAt <= now }
+        if (due.isEmpty()) return this to emptyList()
+        val zone = TimeZone.of(zoneId)
+        val dueIds = due.map { it.id }.toSet()
+        val changed = tasks.map { task ->
+            if (task.id !in dueIds) task else task.copy(
+                dueAt = TaskSchedule.rollDeadline(task.dueAt, now, zone),
+                nextReminderAt = TaskSchedule.nextReminder(now, task.reminderRepeat, zone),
+            )
+        }
+        return copy(tasks = changed) to due
     }
 
     fun addCapture(capture: Capture): BrainData {
@@ -118,7 +166,7 @@ data class BrainData(
     fun updateDraft(id: String, update: CaptureDraftUpdate): BrainData = updateCapture(id) { old ->
         require(!old.status.isWorking && old.isInbox) { "Дождитесь обработки. Сохранённый источник изменять нельзя" }
         old.copy(
-            title = update.title.trim().ifBlank { NoteText.title(update.text) },
+            title = NoteText.title(update.text),
             preparedText = update.text,
             draftEdited = true,
             relevance = emptyMap(),
@@ -132,7 +180,7 @@ data class BrainData(
         require(capture.taskId == null) { "Запись уже сохранена как задача" }
         require(!capture.status.isWorking) { "Дождитесь завершения обработки" }
         val project = projects.firstOrNull { it.id == request.projectId } ?: error("Проект не найден")
-        val addition = capture.textToSave
+        val addition = capture.textToSave.trimEnd()
         require(addition.isNotBlank()) { "В записи пока нет текста" }
         val note = if (request.noteId == null) {
             require(notes.none { it.id == newNoteId }) { "Повторный идентификатор заметки" }
@@ -140,7 +188,7 @@ data class BrainData(
             Note(
                 id = newNoteId,
                 projectId = project.id,
-                title = request.title?.trim()?.takeIf { it.isNotEmpty() } ?: capture.title,
+                title = NoteText.title(addition),
                 body = addition,
                 createdAt = now,
                 updatedAt = now,
@@ -149,7 +197,8 @@ data class BrainData(
         } else {
             val old = notes.firstOrNull { it.id == request.noteId } ?: error("Заметка не найдена")
             require(old.projectId == project.id) { "Заметка относится к другому проекту" }
-            old.copy(body = NoteText.append(old.body, addition), updatedAt = now)
+            val body = NoteText.append(old.body, addition)
+            old.copy(title = NoteText.title(body), body = body, updatedAt = now)
         }
         val updated = if (request.noteId == null) notes + note else notes.map { if (it.id == note.id) note else it }
         return copy(
@@ -164,11 +213,22 @@ data class BrainData(
         require(capture.noteId == null) { "Запись уже сохранена как заметка" }
         require(!capture.status.isWorking) { "Дождитесь завершения обработки" }
         request.projectId?.let { projectId -> require(projects.any { it.id == projectId }) { "Проект не найден" } }
+        require(request.dueAt > now) { "Срок должен быть в будущем" }
         val text = capture.textToSave.trim()
         require(text.isNotBlank()) { "В записи пока нет текста" }
         require(tasks.none { it.id == newTaskId }) { "Повторный идентификатор задачи" }
-        val order = (tasks.maxOfOrNull { it.manualOrder } ?: -1) + 1
-        val task = Task(newTaskId, request.projectId, text, now, now, order)
+        val order = (tasks.filterNot { it.completed }.maxOfOrNull { it.manualOrder } ?: -1) + 1
+        val task = Task(
+            id = newTaskId,
+            projectId = request.projectId,
+            text = text,
+            createdAt = now,
+            updatedAt = now,
+            manualOrder = order,
+            dueAt = request.dueAt,
+            reminderRepeat = request.reminderRepeat,
+            nextReminderAt = request.dueAt,
+        )
         return copy(
             tasks = tasks + task,
             captures = captures.map { if (it.id == id) it.copy(taskId = task.id, appendedAt = now) else it },
