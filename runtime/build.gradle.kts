@@ -8,7 +8,7 @@ kotlin { jvmToolchain(21) }
 application { mainClass.set("brain.runtime.MainKt") }
 
 dependencies {
-    implementation(project(":shared"))
+    implementation(project(":kashaCore"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.ktor.server.core)

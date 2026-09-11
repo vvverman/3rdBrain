@@ -5,4 +5,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "Kasha"
-include(":shared", ":composeApp", ":runtime", ":desktopApp")
+include(":kashaCore", ":composeApp", ":runtime", ":desktopApp")

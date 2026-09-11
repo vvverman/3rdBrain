@@ -1,6 +1,7 @@
 package brain.runtime
 
 import brain.domain.BrainData
+import brain.domain.migrated
 import brain.model.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,15 +22,20 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
     private val stateFile = root.resolve("brain.json")
     private val audioRoot = root.resolve("audio")
     private var state: BrainData
+
     init {
         root.createDirectories(); audioRoot.createDirectories()
         require(!Files.isSymbolicLink(stateFile) && !Files.isSymbolicLink(audioRoot))
+
         state = if (!stateFile.exists()) BrainData() else json.decodeFromString(Files.readString(stateFile))
+        val migrated = state.migrated()
+        if (migrated != state) commit(migrated)
+
         val recovered = state.copy(captures = state.captures.map {
             if (it.status.isWorking) it.copy(status = CaptureStatus.FAILED, message = "Обработка прервана; запись сохранена") else it
         })
         if (recovered != state) commit(recovered)
-        // Завершаем только уже подтверждённые удаления; источник незавершённой операции восстанавливаем.
+
         Files.list(audioRoot).use { dirs -> dirs.filter { it.fileName.toString().startsWith(".deleted-") }.forEach { dir ->
             require(!Files.isSymbolicLink(dir))
             val id = dir.fileName.toString().removePrefix(".deleted-")
@@ -42,15 +48,44 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
             }
         }
     }
-    suspend fun snapshot(): AppSnapshot = mutex.withLock { AppSnapshot(state.projects, state.notes, state.captures, runtimeStatus()) }
+
+    suspend fun snapshot(): AppSnapshot = mutex.withLock {
+        AppSnapshot(state.projects, state.notes, state.captures, runtimeStatus(), state.tasks)
+    }
+
     suspend fun createProject(draft: ProjectDraft): Project = mutex.withLock {
         val id = UUID.randomUUID().toString(); commit(state.addProject(id, now(), draft)); state.projects.first { it.id == id }
     }
-    suspend fun updateProject(id: String, update: ProjectUpdate): Project = mutex.withLock { commit(state.updateProject(id, update)); state.projects.first { it.id == id } }
-    suspend fun pinProject(id: String, pinned: Boolean): Project = mutex.withLock { commit(state.pinProject(id, pinned)); state.projects.first { it.id == id } }
+
+    suspend fun updateProject(id: String, update: ProjectUpdate): Project = mutex.withLock {
+        commit(state.updateProject(id, update, now())); state.projects.first { it.id == id }
+    }
+
+    suspend fun pinProject(id: String, pinned: Boolean): Project = mutex.withLock {
+        commit(state.pinProject(id, pinned)); state.projects.first { it.id == id }
+    }
+
     suspend fun orderPins(ids: List<String>): List<Project> = mutex.withLock { commit(state.orderPins(ids)); state.projects }
-    suspend fun updateNote(id: String, update: NoteUpdate): Note = mutex.withLock { commit(state.updateNote(id, update, now())); state.notes.first { it.id == id } }
-    suspend fun pinNote(id: String, pinned: Boolean): Note = mutex.withLock { commit(state.pinNote(id, pinned)); state.notes.first { it.id == id } }
+    suspend fun orderProjects(ids: List<String>): List<Project> = mutex.withLock { commit(state.orderProjects(ids)); state.projects }
+
+    suspend fun updateNote(id: String, update: NoteUpdate): Note = mutex.withLock {
+        commit(state.updateNote(id, update, now())); state.notes.first { it.id == id }
+    }
+
+    suspend fun pinNote(id: String, pinned: Boolean): Note = mutex.withLock {
+        commit(state.pinNote(id, pinned)); state.notes.first { it.id == id }
+    }
+
+    suspend fun orderNotes(projectId: String, ids: List<String>): List<Note> = mutex.withLock {
+        commit(state.orderNotes(projectId, ids)); state.notes.filter { it.projectId == projectId }
+    }
+
+    suspend fun updateTask(id: String, update: TaskUpdate): Task = mutex.withLock {
+        commit(state.updateTask(id, update, now())); state.tasks.first { it.id == id }
+    }
+
+    suspend fun orderTasks(ids: List<String>): List<Task> = mutex.withLock { commit(state.orderTasks(ids)); state.tasks }
+
     suspend fun createCapture(fileName: String, bytes: ByteArray, requestedId: String? = null): Capture = mutex.withLock {
         require(bytes.isNotEmpty() && bytes.size <= 64 * 1024 * 1024) { "Допустим аудиофайл до 64 МБ" }
         val id = requestedId?.also { require(UUID.fromString(it).toString() == it.lowercase()) } ?: UUID.randomUUID().toString()
@@ -59,7 +94,7 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
             require(if (saved.inputSha256.isNotEmpty()) saved.inputSha256 == hash else Files.readAllBytes(resolveAudio(saved)).contentEquals(bytes))
             return@withLock saved
         }
-        require(!singleCurrent || state.captures.none { it.noteId == null }) { "Сначала сохраните или удалите текущую запись" }
+        require(!singleCurrent || state.captures.none { it.isInbox }) { "Сначала сохраните или удалите текущую запись" }
         val ext = fileName.substringAfterLast('.', "webm").lowercase()
         require(ext in setOf("webm", "m4a", "mp4", "ogg", "wav", "caf"))
         val dir = audioRoot.resolve(id); require(!dir.exists() && !Files.isSymbolicLink(dir)); Files.createDirectory(dir)
@@ -70,33 +105,48 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
             commit(state.addCapture(capture)); capture
         } catch (e: Exception) { Files.deleteIfExists(target); Files.deleteIfExists(dir); throw e }
     }
+
     suspend fun capture(id: String): Capture? = mutex.withLock { state.captures.firstOrNull { it.id == id } }
-    suspend fun updateCapture(id: String, transform: (Capture) -> Capture): Capture = mutex.withLock { commit(state.updateCapture(id, transform)); state.captures.first { it.id == id } }
-    suspend fun updateDraft(id: String, update: CaptureDraftUpdate): Capture = mutex.withLock { commit(state.updateDraft(id, update)); state.captures.first { it.id == id } }
+    suspend fun updateCapture(id: String, transform: (Capture) -> Capture): Capture = mutex.withLock {
+        commit(state.updateCapture(id, transform)); state.captures.first { it.id == id }
+    }
+    suspend fun updateDraft(id: String, update: CaptureDraftUpdate): Capture = mutex.withLock {
+        commit(state.updateDraft(id, update)); state.captures.first { it.id == id }
+    }
+
     suspend fun distribute(id: String, request: DistributionRequest): Note = mutex.withLock {
         val (next, note) = state.distribute(id, request, UUID.randomUUID().toString(), now()); commit(next); note
     }
+
+    suspend fun distributeTask(id: String, request: TaskDistributionRequest): Task = mutex.withLock {
+        val (next, task) = state.distributeTask(id, request, UUID.randomUUID().toString(), now()); commit(next); task
+    }
+
     suspend fun finalizeAudio(id: String, file: Path, seconds: Double, peaks: List<Float>, speed: Double): Capture = mutex.withLock {
-        val old = state.captures.first { it.id == id }; require(old.noteId == null)
+        val old = state.captures.first { it.id == id }; require(old.isInbox)
         val original = resolveAudio(old)
         require(file.toAbsolutePath().normalize().parent == original.parent && file.fileName.toString() == "saved.m4a")
         require(!Files.isSymbolicLink(file) && Files.size(file) > 0 && seconds.isFinite() && seconds > 0)
-        val changed = old.copy(audioFileName = relative(file), compactAudioFileName = null, compactDurationSeconds = 0.0,
-            durationSeconds = seconds, waveform = peaks, savedSpeed = speed, audioFinalized = true, spans = emptyList(), pieces = emptyList())
+        val changed = old.copy(
+            audioFileName = relative(file), compactAudioFileName = null, compactDurationSeconds = 0.0,
+            durationSeconds = seconds, waveform = peaks, savedSpeed = speed, audioFinalized = true,
+            spans = emptyList(), pieces = emptyList(),
+        )
         commit(state.copy(captures = state.captures.map { if (it.id == id) changed else it }))
-        // Только после публикации проверенного файла. Повторная очистка при следующем открытии хранилища.
         if (original != file.toAbsolutePath()) runCatching { Files.deleteIfExists(original) }
         changed
     }
+
     suspend fun discard(id: String) = mutex.withLock {
         val old = state.captures.firstOrNull { it.id == id } ?: return@withLock
-        require(old.noteId == null && !old.status.isWorking)
+        require(old.isInbox && !old.status.isWorking)
         val dir = audioRoot.resolve(id); val trash = audioRoot.resolve(".deleted-$id")
         require(!Files.isSymbolicLink(dir) && !Files.exists(trash)); Files.move(dir, trash)
         try { commit(state.copy(captures = state.captures.filterNot { it.id == id })) }
         catch (e: Exception) { Files.move(trash, dir); throw e }
         trash.toFile().deleteRecursively()
     }
+
     fun resolveAudio(capture: Capture, compact: Boolean = false): Path {
         val rel = (if (compact) capture.compactAudioFileName else capture.audioFileName) ?: error("Аудио ещё не готово")
         val candidate = root.resolve(rel).normalize().toAbsolutePath()
@@ -105,11 +155,14 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
         require(Files.isRegularFile(candidate) && candidate.toRealPath().startsWith(audioRoot.toRealPath()))
         return candidate
     }
+
     private fun relative(path: Path) = root.toAbsolutePath().relativize(path.toAbsolutePath()).toString().replace('\\', '/')
+
     private fun commit(next: BrainData) {
         if (next == state) return
         atomicWrite(stateFile, json.encodeToString(next)); state = next
     }
+
     private fun now() = Clock.System.now().toEpochMilliseconds()
 }
 

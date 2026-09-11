@@ -8,7 +8,7 @@ plugins {
 kotlin { jvmToolchain(21) }
 val demoBuild = providers.gradleProperty("demoBuild").map { it.toBoolean() }.getOrElse(false)
 dependencies {
-    implementation(project(":shared")); implementation(project(":composeApp")); implementation(project(":runtime"))
+    implementation(project(":kashaCore")); implementation(project(":composeApp")); implementation(project(":runtime"))
     implementation(compose.desktop.currentOs); implementation(compose.material3)
     implementation(libs.kotlinx.coroutines.core); implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
     implementation(libs.kotlinx.serialization.json); testImplementation(kotlin("test-junit"))
@@ -33,7 +33,7 @@ compose.desktop {
                 iconFile.set(layout.projectDirectory.file("packaging/Kasha.icns"))
                 infoPlist {
                     extraKeysRawXml = """
-                        <key>NSMicrophoneUsageDescription</key><string>Kasha записывает ваш голос локально. В тестовой версии текст ИИ является примером.</string>
+                        <key>NSMicrophoneUsageDescription</key><string>Kasha записывает ваш голос локально. Аудио, транскрипции, заметки и задачи не отправляются в облако.</string>
                         <key>NSHighResolutionCapable</key><true/>
                         <key>CFBundleDevelopmentRegion</key><string>en</string>
                         <key>CFBundleLocalizations</key><array><string>ru</string><string>en</string><string>es</string><string>fr</string><string>de</string><string>uk</string><string>be</string><string>kk</string></array>

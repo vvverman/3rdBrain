@@ -12,30 +12,32 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Проверка бренда
-        run: python3 scripts/check-brand-boundary.py
+      - name: Проверка бренда и local-only границы
+        run: |
+          python3 scripts/check-brand-boundary.py
+          python3 scripts/check-local-only.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.14.5'
+          gradle-version: '9.3.1'
           cache-read-only: false
-      - name: Сборочные ресурсы и граница Brain UI
+      - name: Сборочные ресурсы и граница Kasha UI
         run: |
           command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y ffmpeg)
           python -m pip install fonttools==4.59.2 playwright==1.55.0
           python scripts/prepare-fonts.py
           python scripts/check-ui-boundary.py
           bash -n run-web.sh scripts/gradle.sh
-      - name: Общий код, состояния интерфейса, диск и production WebAssembly
+      - name: Kasha Core и общий UI на JVM/Android; metadata, runtime и production WebAssembly
         run: |
           set -o pipefail
-          gradle --continue :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
+          gradle --continue :kashaCore:assemble :kashaCore:jvmTest :kashaCore:compileKotlinMetadata :composeApp:assemble :composeApp:jvmTest :runtime:test :desktopApp:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
       - name: Весь пользовательский путь в браузере
         run: |
           export KASHA_HOME=$(mktemp -d)
@@ -45,6 +47,7 @@ jobs:
           PID=$!
           trap 'kill "$PID" 2>/dev/null || true' EXIT
           python tests/studio_browser.py
+          python tests/sorting_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -54,7 +57,8 @@ jobs:
             kotlin.log
             runtime.log
             test-output/studio
-            shared/build/test-results
+            test-output/sorting
+            kashaCore/build/test-results
             composeApp/build/test-results
             runtime/build/test-results
             desktopApp/build/test-results

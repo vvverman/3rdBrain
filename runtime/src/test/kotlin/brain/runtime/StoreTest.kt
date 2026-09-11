@@ -36,13 +36,21 @@ class StoreTest {
     }
 
     @Test
-    fun stateSurvivesReopen() = runBlocking {
+    fun stateAndManualOrderSurviveReopen() = runBlocking {
         val dir = Files.createTempDirectory("kasha-reopen")
         try {
             val first = FileBrainStore(dir) { RuntimeStatus() }
-            first.createProject(ProjectDraft("Живой проект"))
+            val a = first.createProject(ProjectDraft("Первый проект"))
+            val b = first.createProject(ProjectDraft("Второй проект"))
+            first.orderProjects(listOf(b.id, a.id))
+
             val second = FileBrainStore(dir) { RuntimeStatus() }
-            assertEquals(listOf("Живой проект"), second.snapshot().projects.map { it.title })
+            val reopened = second.snapshot().projects
+            assertEquals(setOf("Первый проект", "Второй проект"), reopened.map { it.title }.toSet())
+            assertEquals(
+                listOf("Второй проект", "Первый проект"),
+                reopened.sortedBy { it.manualOrder }.map { it.title },
+            )
         } finally { dir.toFile().deleteRecursively() }
     }
 }

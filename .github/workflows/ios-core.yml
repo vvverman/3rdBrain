@@ -1,0 +1,44 @@
+name: Kasha iOS Shared
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kasha-ios-shared-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-shared:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+          cache-read-only: false
+      - name: Compile Kasha Core and shared Kasha UI for iPhone and Apple Silicon simulator
+        run: |
+          set -o pipefail
+          python -m pip install fonttools==4.59.2
+          python scripts/prepare-fonts.py
+          gradle \
+            :kashaCore:compileKotlinIosArm64 \
+            :kashaCore:compileKotlinIosSimulatorArm64 \
+            :composeApp:compileKotlinIosArm64 \
+            :composeApp:compileKotlinIosSimulatorArm64 \
+            2>&1 | tee ios-shared.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kasha-ios-shared-${{ github.sha }}
+          retention-days: 14
+          path: ios-shared.log

@@ -16,7 +16,13 @@ class StudioStateTest {
         var snapshotGate: CompletableDeferred<Unit>? = null
         override suspend fun snapshot(): AppSnapshot {
             snapshotGate?.await()
-            return AppSnapshot(data.projects,data.notes,data.captures,RuntimeStatus(simulated=true))
+            return AppSnapshot(
+                projects = data.projects,
+                notes = data.notes,
+                captures = data.captures,
+                runtime = RuntimeStatus(simulated=true),
+                tasks = data.tasks,
+            )
         }
         override suspend fun preferences()=prefs
         override suspend fun savePreferences(value:Preferences){prefs=value.validated()}
@@ -24,10 +30,15 @@ class StudioStateTest {
         override suspend fun updateProject(id:String,update:ProjectUpdate):Project{data=data.updateProject(id,update);return data.projects.first{it.id==id}}
         override suspend fun pinProject(id:String,pinned:Boolean):Project{data=data.pinProject(id,pinned);return data.projects.first{it.id==id}}
         override suspend fun orderPins(ids:List<String>){data=data.orderPins(ids)}
+        override suspend fun orderProjects(ids:List<String>){data=data.orderProjects(ids)}
         override suspend fun updateCaptureDraft(id:String,update:CaptureDraftUpdate):Capture{check(!failSave);data=data.updateDraft(id,update);return data.captures.first{it.id==id}}
         override suspend fun distribute(id:String,request:DistributionRequest):Note{val(next,note)=data.distribute(id,request,"n",0);data=next;return note}
+        override suspend fun distributeTask(id:String,request:TaskDistributionRequest):Task{val(next,task)=data.distributeTask(id,request,"t",0);data=next;return task}
         override suspend fun updateNote(id:String,update:NoteUpdate):Note{data=data.updateNote(id,update,0);return data.notes.first{it.id==id}}
         override suspend fun pinNote(id:String,pinned:Boolean):Note{data=data.pinNote(id,pinned);return data.notes.first{it.id==id}}
+        override suspend fun orderNotes(projectId:String,ids:List<String>){data=data.orderNotes(projectId,ids)}
+        override suspend fun updateTask(id:String,update:TaskUpdate):Task{data=data.updateTask(id,update,0);return data.tasks.first{it.id==id}}
+        override suspend fun orderTasks(ids:List<String>){data=data.orderTasks(ids)}
         override suspend fun reprocess(id:String)=data.captures.first{it.id==id}
         override suspend fun tidy(id:String):Capture{val c=data.captures.first{it.id==id};return updateCaptureDraft(id,CaptureDraftUpdate(c.title,DemoIntelligence(0).tidy(c.textToSave,"ru")))}
         override suspend fun rank(id:String)=data.captures.first{it.id==id}
@@ -217,6 +228,17 @@ class StudioStateTest {
         state.pinNote(repo.data.notes.first { it.id=="pin" })
         assertFalse(repo.data.notes.first { it.id=="pin" }.pinned)
         assertEquals("new", state.projectNotes("p").first().id)
+    }
+
+    @Test fun taskDestinationCreatesTaskAndClearsCapture() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        state.editText("Сделать задачу"); state.send(); state.chooseDestinationKind(DestinationKind.TASK)
+        state.distributeTask("p")
+        assertNull(state.current)
+        assertTrue(repo.data.notes.isEmpty())
+        assertEquals("Сделать задачу", state.snapshot.tasks.single().text)
+        assertEquals("p", state.snapshot.tasks.single().projectId)
     }
 
 }
