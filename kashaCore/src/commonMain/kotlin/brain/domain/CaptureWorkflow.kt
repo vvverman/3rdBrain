@@ -1,0 +1,65 @@
+package brain.domain
+
+import brain.model.Capture
+import brain.model.CaptureStatus
+import brain.model.Project
+import brain.studio.Intelligence
+import kotlinx.coroutines.CancellationException
+
+/**
+ * Общая AI/text-оркестрация одной голосовой записи.
+ *
+ * Здесь нет файлов, ffmpeg, потоков, HTTP или API конкретной ОС. Любая платформа
+ * передаёт уже транскрибированный Capture, список проектов и реализацию локального
+ * Intelligence. В результате получает новое валидное состояние Capture.
+ */
+class CaptureWorkflow(private val intelligence: Intelligence) {
+
+    suspend fun finish(capture: Capture, projects: List<Project>, language: String): Capture {
+        require(capture.isInbox)
+        val title = if (capture.draftEdited) {
+            capture.title
+        } else {
+            runCatching { intelligence.title(capture.textToSave, language) }
+                .getOrElse {
+                    if (it is CancellationException) throw it
+                    NoteText.title(capture.textToSave)
+                }
+        }
+        val scores = intelligence.rank(capture.textToSave, projects, language)
+        return capture.copy(
+            title = title.ifBlank { NoteText.title(capture.textToSave) },
+            relevance = scores,
+            rankingApplied = true,
+            status = CaptureStatus.READY,
+            message = "",
+            simulated = intelligence.simulated,
+        )
+    }
+
+    suspend fun tidy(capture: Capture, language: String): Capture {
+        require(capture.isInbox && !capture.status.isWorking)
+        val text = intelligence.tidy(capture.textToSave, language)
+        require(text.isNotBlank())
+        return capture.copy(
+            preparedText = text,
+            draftEdited = true,
+            llmApplied = true,
+            rankingApplied = false,
+            relevance = emptyMap(),
+            status = CaptureStatus.READY,
+            message = "",
+            simulated = intelligence.simulated,
+        )
+    }
+
+    suspend fun rank(capture: Capture, projects: List<Project>, language: String): Capture {
+        require(capture.isInbox && !capture.status.isWorking)
+        val scores = intelligence.rank(capture.textToSave, projects, language)
+        return capture.copy(
+            relevance = scores,
+            rankingApplied = true,
+            simulated = intelligence.simulated,
+        )
+    }
+}
