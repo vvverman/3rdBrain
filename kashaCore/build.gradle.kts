@@ -12,7 +12,7 @@ kotlin {
 
     android {
         namespace = "ru.vrmn.kasha.core"
-        compileSdk = 36
+        compileSdk = 37
         minSdk = 26
     }
 
