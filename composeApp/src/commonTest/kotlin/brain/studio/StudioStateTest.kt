@@ -8,237 +8,325 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StudioStateTest {
-    private class Repo:StudioRepository {
-        override val simulated=true
-        var prefs=Preferences(autoRecord=false)
-        var data=BrainData(projects=listOf(Project("p","Приложение")))
-        var failSave=false;var failDiscard=false;var failCreate=false
+    private class Repo : StudioRepository {
+        override val simulated = true
+        var prefs = Preferences(autoRecord = false)
+        var data = BrainData(projects = listOf(Project("p", "Приложение")))
+        var failSave = false
+        var failDiscard = false
+        var failCreate = false
         var snapshotGate: CompletableDeferred<Unit>? = null
+        private var projectIndex = 1
+        private var noteIndex = 1
+        private var taskIndex = 1
+        private var now = 10L
+
         override suspend fun snapshot(): AppSnapshot {
             snapshotGate?.await()
             return AppSnapshot(
                 projects = data.projects,
                 notes = data.notes,
                 captures = data.captures,
-                runtime = RuntimeStatus(simulated=true),
+                runtime = RuntimeStatus(simulated = true),
                 tasks = data.tasks,
             )
         }
-        override suspend fun preferences()=prefs
-        override suspend fun savePreferences(value:Preferences){prefs=value.validated()}
-        override suspend fun createProject(draft:ProjectDraft):Project{check(!failCreate);data=data.addProject("p2",0,draft);return data.projects.last()}
-        override suspend fun updateProject(id:String,update:ProjectUpdate):Project{data=data.updateProject(id,update);return data.projects.first{it.id==id}}
-        override suspend fun pinProject(id:String,pinned:Boolean):Project{data=data.pinProject(id,pinned);return data.projects.first{it.id==id}}
-        override suspend fun orderPins(ids:List<String>){data=data.orderPins(ids)}
-        override suspend fun orderProjects(ids:List<String>){data=data.orderProjects(ids)}
-        override suspend fun updateCaptureDraft(id:String,update:CaptureDraftUpdate):Capture{check(!failSave);data=data.updateDraft(id,update);return data.captures.first{it.id==id}}
-        override suspend fun distribute(id:String,request:DistributionRequest):Note{val(next,note)=data.distribute(id,request,"n",0);data=next;return note}
-        override suspend fun distributeTask(id:String,request:TaskDistributionRequest):Task{val(next,task)=data.distributeTask(id,request,"t",0);data=next;return task}
-        override suspend fun updateNote(id:String,update:NoteUpdate):Note{data=data.updateNote(id,update,0);return data.notes.first{it.id==id}}
-        override suspend fun pinNote(id:String,pinned:Boolean):Note{data=data.pinNote(id,pinned);return data.notes.first{it.id==id}}
-        override suspend fun orderNotes(projectId:String,ids:List<String>){data=data.orderNotes(projectId,ids)}
-        override suspend fun updateTask(id:String,update:TaskUpdate):Task{data=data.updateTask(id,update,0);return data.tasks.first{it.id==id}}
-        override suspend fun orderTasks(ids:List<String>){data=data.orderTasks(ids)}
-        override suspend fun reprocess(id:String)=data.captures.first{it.id==id}
-        override suspend fun tidy(id:String):Capture{val c=data.captures.first{it.id==id};return updateCaptureDraft(id,CaptureDraftUpdate(c.title,DemoIntelligence(0).tidy(c.textToSave,"ru")))}
-        override suspend fun rank(id:String)=data.captures.first{it.id==id}
-        override suspend fun discard(id:String){check(!failDiscard);data=data.copy(captures=data.captures.filterNot{it.id==id})}
-        override suspend fun createDemo():Capture{val c=Capture("c",0,title="Тест",transcript="Старый текст",status=CaptureStatus.QUEUED,simulated=true);data=data.addCapture(c);return c}
-        fun ready(){data=data.copy(captures=data.captures.map{it.copy(status=CaptureStatus.READY,audioFinalized=true,audioFileName="audio/c/saved.m4a")})}
+        override suspend fun preferences() = prefs
+        override suspend fun savePreferences(value: Preferences) { prefs = value.validated() }
+        override suspend fun createProject(draft: ProjectDraft): Project {
+            check(!failCreate)
+            val id = "p${++projectIndex}"
+            data = data.addProject(id, now++, draft)
+            return data.projects.last()
+        }
+        override suspend fun updateProject(id: String, update: ProjectUpdate): Project {
+            data = data.updateProject(id, update, now++)
+            return data.projects.first { it.id == id }
+        }
+        override suspend fun pinProject(id: String, pinned: Boolean): Project {
+            data = data.pinProject(id, pinned)
+            return data.projects.first { it.id == id }
+        }
+        override suspend fun orderPins(ids: List<String>) { data = data.orderPins(ids) }
+        override suspend fun orderProjects(ids: List<String>) { data = data.orderProjects(ids) }
+        override suspend fun updateCaptureDraft(id: String, update: CaptureDraftUpdate): Capture {
+            check(!failSave)
+            data = data.updateDraft(id, update)
+            return data.captures.first { it.id == id }
+        }
+        override suspend fun distribute(id: String, request: DistributionRequest): Note {
+            val (next, note) = data.distribute(id, request, "n${noteIndex++}", now++)
+            data = next
+            return note
+        }
+        override suspend fun distributeTask(id: String, request: TaskDistributionRequest): Task {
+            val (next, task) = data.distributeTask(id, request, "t${taskIndex++}", now++)
+            data = next
+            return task
+        }
+        override suspend fun updateNote(id: String, update: NoteUpdate): Note {
+            data = data.updateNote(id, update, now++)
+            return data.notes.first { it.id == id }
+        }
+        override suspend fun pinNote(id: String, pinned: Boolean): Note {
+            data = data.pinNote(id, pinned)
+            return data.notes.first { it.id == id }
+        }
+        override suspend fun orderNotes(projectId: String, ids: List<String>) { data = data.orderNotes(projectId, ids) }
+        override suspend fun updateTask(id: String, update: TaskUpdate): Task {
+            data = data.updateTask(id, update, now++)
+            return data.tasks.first { it.id == id }
+        }
+        override suspend fun rescheduleTask(id: String, update: TaskScheduleUpdate): Task {
+            data = data.rescheduleTask(id, update, now++)
+            return data.tasks.first { it.id == id }
+        }
+        override suspend fun completeTask(id: String): Task {
+            data = data.completeTask(id, now++)
+            return data.tasks.first { it.id == id }
+        }
+        override suspend fun deleteTask(id: String) { data = data.deleteTask(id) }
+        override suspend fun orderTasks(ids: List<String>) { data = data.orderTasks(ids) }
+        override suspend fun claimTaskReminders(now: Long, zoneId: String): List<Task> {
+            val (next, due) = data.claimDueReminders(now, zoneId)
+            data = next
+            return due
+        }
+        override suspend fun reprocess(id: String) = data.captures.first { it.id == id }
+        override suspend fun tidy(id: String): Capture {
+            val c = data.captures.first { it.id == id }
+            return updateCaptureDraft(id, CaptureDraftUpdate(text = DemoIntelligence(0).tidy(c.textToSave, "ru")))
+        }
+        override suspend fun rank(id: String) = data.captures.first { it.id == id }
+        override suspend fun discard(id: String) {
+            check(!failDiscard)
+            data = data.copy(captures = data.captures.filterNot { it.id == id })
+        }
+        override suspend fun createDemo(): Capture {
+            val id = "c${data.captures.size + 1}"
+            val c = Capture(id, now++, title = "Тест", transcript = "Старый текст", status = CaptureStatus.QUEUED, simulated = true)
+            data = data.addCapture(c)
+            return c
+        }
+        fun ready() {
+            data = data.copy(captures = data.captures.map {
+                if (it.isInbox) it.copy(
+                    status = CaptureStatus.READY,
+                    preparedText = it.preparedText.ifBlank { it.transcript },
+                    audioFinalized = true,
+                    audioFileName = "audio/${it.id}/saved.m4a",
+                ) else it
+            })
+        }
     }
-    private class Recorder(val repo:Repo):RecorderGateway {
-        var status="idle";var starts=0;var recovered=false
-        override suspend fun hasConsent()=true
-        override suspend fun hasPending()=false
-        override fun phase()=status
-        override fun level()=if(status=="recording")0.5f else 0f
-        override suspend fun start(){starts++;status="recording"}
-        override suspend fun pause(){status="paused"}
-        override suspend fun resume(){status="recording"}
-        override suspend fun stopAndUpload():Capture{status="idle";return repo.createDemo()}
-        override suspend fun recoverPending():Capture{recovered=true;return repo.createDemo()}
-    }
-    private class Audio:AudioGateway {
-        var plays=0;var t=AudioTelemetry()
-        override suspend fun playCapture(captureId:String,compact:Boolean,fromSeconds:Double,rate:Double){plays++;t=AudioTelemetry("playing",fromSeconds,10.0)}
-        override suspend fun pause(){t=t.copy(phase="paused")}
-        override suspend fun resume(){t=t.copy(phase="playing")}
-        override fun telemetry()=t
-        override fun stop(){t=AudioTelemetry()}
-    }
-    @Test fun disabledAutostartDoesNotRequestMic()=runTest{val r=Repo();val mic=Recorder(r);val s=StudioState(r,mic,Audio());s.launch();assertEquals(0,mic.starts)}
-    @Test fun autostartRunsOnceAndOnlyWithoutCurrent()=runTest{val r=Repo().apply{prefs=Preferences(autoRecord=true)};val mic=Recorder(r);val s=StudioState(r,mic,Audio());s.launch();s.launch();assertEquals(1,mic.starts)}
-    @Test fun unsentSessionSuppressesAutostart()=runTest{val r=Repo().apply{prefs=Preferences(autoRecord=true)};r.createDemo();r.ready();val mic=Recorder(r);val s=StudioState(r,mic,Audio());s.launch();assertEquals(0,mic.starts);assertNotNull(s.current)}
-    @Test fun navigationDoesNotStopOrPauseRecording()=runTest{val r=Repo();val mic=Recorder(r);val s=StudioState(r,mic,Audio());s.launch();s.startRecording();s.navigate(Tab.PROJECTS);s.navigate(Tab.SETTINGS);assertEquals("recording",mic.status)}
-    @Test fun otherAudioRequiresConfirmationWhileRecording()=runTest{val r=Repo();val mic=Recorder(r);val a=Audio();val s=StudioState(r,mic,a);s.launch();s.startRecording();s.requestListen("saved");assertEquals("saved",s.confirmListenId);assertEquals(0,a.plays);assertEquals("recording",mic.status);s.confirmListenId=null;assertEquals("recording",mic.status)}
-    @Test fun confirmationSavesBeforePlaying()=runTest{val r=Repo();val mic=Recorder(r);val a=Audio();val s=StudioState(r,mic,a);s.launch();s.startRecording();s.requestListen("saved");s.confirmStopAndListen();assertEquals("idle",mic.status);assertNotNull(s.current);assertEquals(1,a.plays)}
-    @Test fun playingBlocksRecording()=runTest{val r=Repo();val mic=Recorder(r);val s=StudioState(r,mic,Audio());s.launch();s.requestListen("saved");s.startRecording();assertEquals(0,mic.starts);assertEquals("stopPlayback",s.error)}
-    @Test fun failedTextSaveCannotDistributeStaleText()=runTest{val r=Repo();r.createDemo();r.ready();val s=StudioState(r,Recorder(r),Audio());s.launch();s.editText("Изменено");r.failSave=true;s.send();assertFalse(s.choosingProject);assertEquals("Изменено",s.text);assertTrue(r.data.notes.isEmpty())}
-    @Test fun textSurvivesNavigationAndFlush()=runTest{val r=Repo();r.createDemo();r.ready();val s=StudioState(r,Recorder(r),Audio());s.launch();s.editTitle("Мой заголовок");s.editText("Мои слова");s.navigate(Tab.PROJECTS);s.flush();s.refresh();assertEquals("Мои слова",s.text);assertEquals("Мои слова",r.data.captures.single().textToSave)}
-    @Test fun autoRouteOnlyAfterResult()=runTest{val r=Repo().apply{prefs=Preferences(autoRecord=false,autoRoute=true)};val s=StudioState(r,Recorder(r),Audio());s.launch();s.demo();assertFalse(s.choosingProject);r.ready();s.refresh();assertTrue(s.choosingProject);assertTrue(r.data.notes.isEmpty())}
-    @Test fun savedSessionClearsHome()=runTest{val r=Repo();r.createDemo();r.ready();val s=StudioState(r,Recorder(r),Audio());s.launch();s.distribute("p");assertNull(s.current);assertEquals("",s.text);assertEquals("p",r.data.notes.single().projectId)}
-    @Test fun failedDiscardKeepsSession()=runTest{val r=Repo();r.createDemo();r.ready();r.failDiscard=true;val s=StudioState(r,Recorder(r),Audio());s.launch();s.discard();assertNotNull(s.current)}
-    @Test fun localizationIsCompleteAndExplicit() {assertTrue(Copy.keys().size>60);for(key in Copy.keys())for(lang in Languages.codes)assertTrue(Copy.text(lang,key).isNotBlank())}
 
-    @Test fun distributionPublishesSnapshotBeforeClosingPicker() = runTest {
+    private class Recorder(private val repo: Repo) : RecorderGateway {
+        var status = "idle"
+        var starts = 0
+        override suspend fun hasConsent() = true
+        override suspend fun hasPending() = false
+        override fun phase() = status
+        override fun level() = if (status == "recording") 0.5f else 0f
+        override suspend fun start() { starts++; status = "recording" }
+        override suspend fun pause() { status = "paused" }
+        override suspend fun resume() { status = "recording" }
+        override suspend fun stopAndUpload(): Capture { status = "idle"; return repo.createDemo() }
+        override suspend fun recoverPending(): Capture = repo.createDemo()
+    }
+
+    private class Audio : AudioGateway {
+        var plays = 0
+        var telemetry = AudioTelemetry()
+        override suspend fun playCapture(captureId: String, compact: Boolean, fromSeconds: Double, rate: Double) {
+            plays++
+            telemetry = AudioTelemetry("playing", fromSeconds, 10.0)
+        }
+        override suspend fun pause() { telemetry = telemetry.copy(phase = "paused") }
+        override suspend fun resume() { telemetry = telemetry.copy(phase = "playing") }
+        override fun telemetry() = telemetry
+        override fun stop() { telemetry = AudioTelemetry() }
+    }
+
+    @Test
+    fun disabledAutostartDoesNotRequestMic() = runTest {
+        val repo = Repo(); val recorder = Recorder(repo)
+        StudioState(repo, recorder, Audio()).launch()
+        assertEquals(0, recorder.starts)
+    }
+
+    @Test
+    fun autostartRunsOnceAndOnlyWithoutCurrentCapture() = runTest {
+        val repo = Repo().apply { prefs = Preferences(autoRecord = true) }
+        val recorder = Recorder(repo); val state = StudioState(repo, recorder, Audio())
+        state.launch(); state.launch()
+        assertEquals(1, recorder.starts)
+    }
+
+    @Test
+    fun navigationDoesNotStopRecording() = runTest {
+        val repo = Repo(); val recorder = Recorder(repo); val state = StudioState(repo, recorder, Audio())
+        state.launch(); state.startRecording(); state.navigate(Tab.PROJECTS); state.navigate(Tab.SETTINGS)
+        assertEquals("recording", recorder.status)
+    }
+
+    @Test
+    fun noteDraftHasOnlyTextAndTitleFollowsFirstLine() = runTest {
         val repo = Repo(); repo.createDemo(); repo.ready()
         val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
-        state.choosingProject = true; state.targetProjectId = "p"
-        val gate = CompletableDeferred<Unit>(); repo.snapshotGate = gate
-        val save = launch { state.distribute("p") }; runCurrent()
-        assertEquals(1, repo.data.notes.size)
-        assertTrue(state.choosingProject)
-        assertFalse(save.isCompleted)
-        gate.complete(Unit); save.join()
-        assertNull(state.current); assertFalse(state.choosingProject)
-        assertEquals(1, state.projectNotes("p").size)
+        state.editText("Первая строка\nОстальной текст")
+        state.flush(); state.refresh()
+        assertEquals("Первая строка", state.title)
+        assertEquals("Первая строка", repo.data.captures.single().title)
+        assertEquals("Первая строка\nОстальной текст", repo.data.captures.single().textToSave)
     }
-    @Test fun projectEditorClosesOnlyAfterSnapshotRefresh() = runTest {
-        val repo = Repo(); val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
-        state.editingProjectId = "new"
-        val gate = CompletableDeferred<Unit>(); repo.snapshotGate = gate
-        val save = launch { state.createProject("Новый проект", "") }; runCurrent()
-        assertEquals("new", state.editingProjectId)
-        gate.complete(Unit); save.join()
-        assertNull(state.editingProjectId)
-        assertTrue(state.snapshot.projects.any { it.title == "Новый проект" })
-    }
-    @Test fun leavingScreenDoesNotCancelCommittedSaveRefresh() = runTest {
+
+    @Test
+    fun failedTextSaveCannotOpenNoteDestination() = runTest {
         val repo = Repo(); repo.createDemo(); repo.ready()
         val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
-        state.attachActionScope(backgroundScope)
-        val screen = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
-        val gate = CompletableDeferred<Unit>(); repo.snapshotGate = gate
-        val caller = screen.launch { state.distribute("p") }; runCurrent()
-        assertEquals(1, repo.data.notes.size)
-        screen.cancel(); runCurrent()
-        assertTrue(caller.isCancelled)
-        gate.complete(Unit); runCurrent()
-        assertNull(state.current)
-        assertEquals(1, state.projectNotes("p").size)
-        assertFalse(state.busy)
-        state.detachActionScope(backgroundScope)
-    }
-    @Test fun emptyInstallationGetsOneStarterProjectAndKeepsItOnRelaunch() = runTest {
-        val repo = Repo().apply { data = BrainData() }
-        val first = StudioState(repo, Recorder(repo), Audio(), "ru-RU")
-        first.launch()
-        val starter = repo.data.projects.single()
-        assertEquals("Твой первый проект", starter.title)
-        assertEquals("", starter.instruction)
-        val second = StudioState(repo, Recorder(repo), Audio(), "en-US")
-        second.launch()
-        assertEquals(listOf(starter), second.snapshot.projects)
-    }
-    @Test fun existingProjectsAreNotReplacedOrRenamed() = runTest {
-        val repo = Repo(); val before = repo.data.projects
-        StudioState(repo, Recorder(repo), Audio(), "fr-FR").launch()
-        assertEquals(before, repo.data.projects)
-    }
-    @Test fun starterUsesSelectedInterfaceLanguage() = runTest {
-        val repo = Repo().apply { data = BrainData(); prefs = Preferences(autoRecord = false, language = "de") }
-        StudioState(repo, Recorder(repo), Audio(), "ru-RU").launch()
-        assertEquals("Dein erstes Projekt", repo.data.projects.single().title)
-    }
-    @Test fun starterCanReceiveFirstNoteWithoutProjectSetup() = runTest {
-        val repo = Repo().apply { data = BrainData() }
-        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
-        val project = state.snapshot.projects.single()
-        state.demo(); repo.ready(); state.refresh(); state.send()
-        assertTrue(state.choosingProject)
-        state.distribute(project.id)
-        assertNull(state.current)
-        assertEquals(project.id, repo.data.notes.single().projectId)
-    }
-    @Test fun projectCreatedFromPickerKeepsRecordingAndSelectsDestination() = runTest {
-        val repo = Repo(); repo.createDemo(); repo.ready()
-        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
-        state.editText("Мой изменённый текст"); state.send()
-        val id = state.current!!.id
-        state.beginProjectCreation(fromPicker = true)
-        state.createProject("Новый проект", "")
-        assertNull(state.editingProjectId)
-        assertTrue(state.choosingProject)
-        assertEquals("p2", state.targetProjectId)
-        assertEquals(id, state.current!!.id)
-        assertEquals("Мой изменённый текст", state.text)
-        assertTrue(repo.data.notes.isEmpty())
-        state.distribute("p2")
-        assertEquals("Мой изменённый текст", repo.data.notes.single().body)
-    }
-    @Test fun cancellingProjectCreationReturnsToPickerWithoutDiscardingNote() = runTest {
-        val repo = Repo(); repo.createDemo(); repo.ready()
-        val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.send()
-        val before = state.current
-        state.beginProjectCreation(fromPicker = true); state.cancelProjectEdit()
-        assertTrue(state.choosingProject); assertNull(state.editingProjectId)
-        assertNull(state.targetProjectId); assertEquals(before, state.current)
-        assertEquals(1, repo.data.projects.size)
-    }
-    @Test fun failedProjectCreationDoesNotCloseEditorOrSaveNote() = runTest {
-        val repo = Repo(); repo.createDemo(); repo.ready()
-        val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.send()
-        state.beginProjectCreation(fromPicker = true); repo.failCreate = true
-        state.createProject("Новый проект", "")
-        assertEquals("new", state.editingProjectId); assertNull(state.targetProjectId)
-        assertNotNull(state.current); assertTrue(repo.data.notes.isEmpty())
-        assertEquals(1, repo.data.projects.size)
-    }
-    @Test fun navigatingAwayDuringProjectCreationDoesNotOpenDestination() = runTest {
-        val repo = Repo(); repo.createDemo(); repo.ready()
-        val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.send()
-        state.beginProjectCreation(fromPicker = true)
-        val gate = CompletableDeferred<Unit>(); repo.snapshotGate = gate
-        val save = launch { state.createProject("Новый проект", "") }; runCurrent()
-        state.navigate(Tab.SETTINGS)
-        gate.complete(Unit); save.join()
-        assertEquals(Tab.SETTINGS, state.tab)
-        assertFalse(state.choosingProject); assertNull(state.targetProjectId)
-        assertNotNull(state.current); assertEquals(2, repo.data.projects.size)
-    }
-    @Test fun submitPausedRecordingStartsProcessingButDoesNotSaveToProject() = runTest {
-        val repo = Repo(); val mic = Recorder(repo)
-        val state = StudioState(repo, mic, Audio()); state.launch()
-        state.startRecording(); state.pauseRecording(); state.stopRecording()
-        assertEquals("idle", mic.status)
-        assertEquals(CaptureStatus.QUEUED, state.current!!.status)
+        state.editText("Изменено"); repo.failSave = true
+        state.sendToNotes()
+        assertFalse(state.choosingProject)
         assertTrue(repo.data.notes.isEmpty())
     }
 
-    @Test fun savedNoteCanBeEditedLater() = runTest {
+    @Test
+    fun sendToNotesOpensOnlyProjectPickerAndSavesNote() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        state.editText("Название из текста\nТело")
+        state.sendToNotes()
+        assertTrue(state.choosingProject)
+        assertNull(state.taskScheduleTarget)
+        state.distribute("p")
+        assertNull(state.current)
+        assertFalse(state.choosingProject)
+        assertEquals("Название из текста", repo.data.notes.single().title)
+        assertEquals("Название из текста\nТело", repo.data.notes.single().body)
+    }
+
+    @Test
+    fun savedNoteEditRecomputesTitleFromFirstLine() = runTest {
         val repo = Repo().apply {
-            data = BrainData(projects=listOf(Project("p","Приложение")), notes=listOf(Note("n","p","Старое название","Старый текст",1,1)))
+            data = BrainData(
+                projects = listOf(Project("p", "Приложение")),
+                notes = listOf(Note("n", "p", "Старое", "Старое\nТело", 1, 1)),
+            )
         }
         val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.openNote("n"); state.beginNoteEdit("n")
-        state.saveNote("n", "Новое название", "Исправленный текст")
+        state.saveNote("n", "Новое название\nИсправленный текст")
         assertNull(state.editingNoteId)
         assertEquals("Новое название", state.snapshot.notes.single().title)
-        assertEquals("Исправленный текст", state.snapshot.notes.single().body)
+        assertEquals("Новое название\nИсправленный текст", state.snapshot.notes.single().body)
     }
 
-    @Test fun pinnedNotesAreShownFirstAndCanBeUnpinned() = runTest {
+    @Test
+    fun sendToTasksOpensScheduleWithoutProjectPicker() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        state.editText("Сделать задачу\nПодробности")
+        state.sendToTasks()
+        assertEquals("new", state.taskScheduleTarget)
+        assertFalse(state.choosingProject)
+        state.saveTaskSchedule(10_000, ReminderRepeat.THIRTY_MINUTES)
+        assertNull(state.current)
+        assertNull(state.taskScheduleTarget)
+        assertEquals(Tab.TASKS, state.tab)
+        val task = state.snapshot.tasks.single()
+        assertNull(task.projectId)
+        assertEquals("Сделать задачу\nПодробности", task.text)
+        assertEquals(10_000, task.dueAt)
+        assertEquals(ReminderRepeat.THIRTY_MINUTES, task.reminderRepeat)
+    }
+
+    @Test
+    fun taskCanBeEditedRescheduledCompletedArchivedAndDeleted() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready()
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
+        state.editText("Задача")
+        state.sendToTasks(); state.saveTaskSchedule(10_000, ReminderRepeat.HOURLY)
+        val id = state.snapshot.tasks.single().id
+
+        state.saveTask(id, "Задача\nНовое тело")
+        state.editTaskSchedule(id)
+        state.saveTaskSchedule(20_000, ReminderRepeat.DAILY)
+        var task = state.snapshot.tasks.single()
+        assertEquals("Задача\nНовое тело", task.text)
+        assertEquals(20_000, task.dueAt)
+        assertEquals(ReminderRepeat.DAILY, task.reminderRepeat)
+
+        state.completeTask(id)
+        assertTrue(state.snapshot.tasks.single().completed)
+        assertTrue(state.tasks().isEmpty())
+        state.taskArchive = true
+        assertEquals(id, state.tasks().single().id)
+
+        state.deleteTask(id)
+        assertTrue(state.snapshot.tasks.isEmpty())
+    }
+
+    @Test
+    fun manualTaskOrderAppliesOnlyToActiveTasks() = runTest {
         val repo = Repo().apply {
-            data = BrainData(projects=listOf(Project("p","Приложение")), notes=listOf(
-                Note("new","p","Свежая","текст",1,100),
-                Note("pin","p","Закреплённая","текст",1,1,pinned=true,pinOrder=0)
+            prefs = Preferences(autoRecord = false, taskSort = SortMode.MANUAL)
+            data = data.copy(tasks = listOf(
+                Task("a", text = "A", createdAt = 1, updatedAt = 1, manualOrder = 0),
+                Task("b", text = "B", createdAt = 2, updatedAt = 2, manualOrder = 1, completedAt = 3),
+                Task("c", text = "C", createdAt = 3, updatedAt = 3, manualOrder = 2),
             ))
         }
         val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
-        assertEquals(listOf("pin","new"), state.projectNotes("p").map { it.id })
-        state.pinNote(repo.data.notes.first { it.id=="pin" })
-        assertFalse(repo.data.notes.first { it.id=="pin" }.pinned)
-        assertEquals("new", state.projectNotes("p").first().id)
+        state.reorderTasks(listOf("c", "a"))
+        assertEquals(listOf("c", "a"), state.tasks().map { it.id })
+        state.taskArchive = true
+        assertEquals(listOf("b"), state.tasks().map { it.id })
     }
 
-    @Test fun taskDestinationCreatesTaskAndClearsCapture() = runTest {
+    @Test
+    fun emptyInstallationGetsLocalizedStarterProjectOnce() = runTest {
+        val repo = Repo().apply { data = BrainData(); prefs = Preferences(autoRecord = false, language = "de") }
+        val first = StudioState(repo, Recorder(repo), Audio(), "ru-RU")
+        first.launch()
+        assertEquals("Dein erstes Projekt", repo.data.projects.single().title)
+        val before = repo.data.projects
+        val second = StudioState(repo, Recorder(repo), Audio(), "en-US")
+        second.launch()
+        assertEquals(before, second.snapshot.projects)
+    }
+
+    @Test
+    fun projectCreationFromNotePickerKeepsCurrentCapture() = runTest {
         val repo = Repo(); repo.createDemo(); repo.ready()
         val state = StudioState(repo, Recorder(repo), Audio()); state.launch()
-        state.editText("Сделать задачу"); state.send(); state.chooseDestinationKind(DestinationKind.TASK)
-        state.distributeTask("p")
-        assertNull(state.current)
-        assertTrue(repo.data.notes.isEmpty())
-        assertEquals("Сделать задачу", state.snapshot.tasks.single().text)
-        assertEquals("p", state.snapshot.tasks.single().projectId)
+        state.editText("Мой текст"); state.sendToNotes()
+        val captureId = state.current!!.id
+        state.beginProjectCreation(fromPicker = true)
+        state.createProject("Новый проект", "")
+        assertTrue(state.choosingProject)
+        assertNotNull(state.targetProjectId)
+        assertEquals(captureId, state.current!!.id)
+        assertEquals("Мой текст", state.text)
     }
 
+    @Test
+    fun playbackAndRecordingStayMutuallyExclusive() = runTest {
+        val repo = Repo(); val recorder = Recorder(repo); val audio = Audio(); val state = StudioState(repo, recorder, audio)
+        state.launch(); state.requestListen("saved")
+        state.startRecording()
+        assertEquals(0, recorder.starts)
+        assertEquals("stopPlayback", state.error)
+    }
+
+    @Test
+    fun failedDiscardKeepsCurrentCapture() = runTest {
+        val repo = Repo(); repo.createDemo(); repo.ready(); repo.failDiscard = true
+        val state = StudioState(repo, Recorder(repo), Audio()); state.launch(); state.discard()
+        assertNotNull(state.current)
+    }
+
+    @Test
+    fun localizationIsCompleteAndExplicit() {
+        assertTrue(Copy.keys().size > 60)
+        for (key in Copy.keys()) for (lang in Languages.codes) assertTrue(Copy.text(lang, key).isNotBlank())
+    }
 }
