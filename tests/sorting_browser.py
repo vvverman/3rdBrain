@@ -92,9 +92,15 @@ with sync_playwright() as pw:
         box = locator.bounding_box()
         assert box, label
         page.mouse.click(box['x'] + min(20, box['width'] / 2), box['y'] + min(20, box['height'] / 2))
+        page.wait_for_timeout(160)
         page.keyboard.press('Control+a')
+        page.wait_for_timeout(90)
+        page.keyboard.press('Backspace')
+        page.wait_for_timeout(90)
+        page.keyboard.press('Control+a')
+        page.wait_for_timeout(60)
         page.keyboard.insert_text(value)
-        page.wait_for_timeout(350)
+        page.wait_for_timeout(650)
 
     def item(label):
         # Compose WASM объединяет содержимое карточки в одно accessible-name.
