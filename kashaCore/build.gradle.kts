@@ -3,11 +3,22 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.androidKotlinMultiplatformLibrary)
 }
 
 kotlin {
     jvm()
     jvmToolchain(21)
+
+    android {
+        namespace = "ru.vrmn.kasha.core"
+        compileSdk = 36
+        minSdk = 26
+    }
+
+    iosArm64()
+    iosSimulatorArm64()
+
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs { browser() }
 
