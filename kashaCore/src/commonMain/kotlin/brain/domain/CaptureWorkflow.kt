@@ -16,20 +16,29 @@ import kotlin.math.max
  */
 class CaptureWorkflow(private val intelligence: Intelligence) {
 
+    private fun validatedScores(projects: List<Project>, scores: Map<String, Int>): Map<String, Int> {
+        val expected = projects.map { it.id }.toSet()
+        require(scores.keys == expected) { "Модель вернула оценки не для того набора проектов" }
+        require(scores.values.all { it in 0..4 }) { "Модель вернула некорректную оценку проекта" }
+        return scores
+    }
+
     suspend fun finish(capture: Capture, projects: List<Project>, language: String): Capture {
         require(capture.isInbox)
+        val original = capture.textToSave
         val title = if (capture.draftEdited) {
             capture.title
         } else {
-            runCatching { intelligence.title(capture.textToSave, language) }
+            runCatching { intelligence.title(original, language) }
                 .getOrElse {
                     if (it is CancellationException) throw it
-                    NoteText.title(capture.textToSave)
+                    NoteText.title(original)
                 }
+                .let { LocalModelText.safeTitle(it, original) }
         }
-        val scores = intelligence.rank(capture.textToSave, projects, language)
+        val scores = validatedScores(projects, intelligence.rank(original, projects, language))
         return capture.copy(
-            title = title.ifBlank { NoteText.title(capture.textToSave) },
+            title = title.ifBlank { NoteText.title(original) },
             relevance = scores,
             rankingApplied = true,
             status = CaptureStatus.READY,
@@ -60,7 +69,7 @@ class CaptureWorkflow(private val intelligence: Intelligence) {
 
     suspend fun rank(capture: Capture, projects: List<Project>, language: String): Capture {
         require(capture.isInbox && !capture.status.isWorking)
-        val scores = intelligence.rank(capture.textToSave, projects, language)
+        val scores = validatedScores(projects, intelligence.rank(capture.textToSave, projects, language))
         return capture.copy(
             relevance = scores,
             rankingApplied = true,
