@@ -35,6 +35,7 @@ jobs:
       - name: Ресурсы дизайна и граница Kasha UI
         run: |
           command -v ffmpeg || brew install ffmpeg
+          command -v rsvg-convert || brew install librsvg
           python3 -m venv .studio-python
           .studio-python/bin/pip install pillow==11.3.0 fonttools==4.59.2
           .studio-python/bin/python scripts/prepare-fonts.py
