@@ -50,11 +50,11 @@ with sync_playwright() as pw:
         box=locator.bounding_box();assert box,label
         page.mouse.click(box['x']+min(20,box['width']/2),box['y']+min(20,box['height']/2))
         page.keyboard.press('Control+a');page.keyboard.insert_text(value);page.wait_for_timeout(600)
-    def current():return next((c for c in api('snapshot')['captures'] if c['noteId'] is None),None)
+    def current():return next((c for c in api('snapshot')['captures'] if c['noteId'] is None and c.get('taskId') is None),None)
     def ready():return wait(lambda:(c if (c:=current()) and c['status']=='READY' else None),'готовый пример')
     def player():
         nav=[]
-        for name in ['Главная','Проекты','Настройки']:
+        for name in ['Главная','Проекты','Задачи','Настройки']:
             locator=page.get_by_role('button',name=name,exact=True);locator.wait_for(state='visible');nav.append(locator.bounding_box())
         transport=[]
         for name in ['Запись','Воспроизвести','Пауза','Продолжить']:
@@ -145,6 +145,38 @@ with sync_playwright() as pw:
         checks.append('создание проекта в выборе, возврат без потерь и сохранение в новый проект')
         button('Попробовать без микрофона');ready();button('Отменить заметку');player();button('Удалить')
         wait(lambda:current() is None,'удаление текущего');checks.append('создание тестового сигнала и удаление')
+
+        # Задачи: два голосовых capture -> отдельные задачи -> все четыре сортировки
+        # -> long-press reorder -> смена сортировки -> возврат к сохранённому Manual.
+        def task_y(label):
+            box=page.get_by_text(label,exact=True).bounding_box();assert box,label
+            return box['y']
+        tab('Главная');button('Попробовать без микрофона');ready()
+        field('Текст заметки','Альфа задача');button('Отправить в проект')
+        click('radio','Задача');click('button',re.compile('^Твой первый проект'));button('Сохранить задачу')
+        wait(lambda:current() is None,'первая задача сохранена')
+        tab('Главная');button('Попробовать без микрофона');ready()
+        field('Текст заметки','Бета задача');button('Отправить в проект')
+        click('radio','Задача');click('button',re.compile('^Твой первый проект'));button('Сохранить задачу')
+        wait(lambda:current() is None,'вторая задача сохранена')
+        tasks=api('snapshot')['tasks'];assert len(tasks)==2,tasks
+        assert {t['text'] for t in tasks}=={'Альфа задача','Бета задача'}
+        tab('Задачи');page.get_by_text('Альфа задача',exact=True).wait_for(state='visible');page.get_by_text('Бета задача',exact=True).wait_for(state='visible')
+        assert task_y('Бета задача') < task_y('Альфа задача')
+        click('radio','А-Я');wait(lambda:task_y('Альфа задача') < task_y('Бета задача'),'алфавитная сортировка задач')
+        click('radio','Создано');wait(lambda:task_y('Бета задача') < task_y('Альфа задача'),'сортировка задач по созданию')
+        click('radio','Изменено');wait(lambda:task_y('Бета задача') < task_y('Альфа задача'),'сортировка задач по изменению')
+        click('radio','Вручную');wait(lambda:task_y('Альфа задача') < task_y('Бета задача'),'исходный ручной порядок задач')
+        alpha=page.get_by_text('Альфа задача',exact=True).bounding_box();beta=page.get_by_text('Бета задача',exact=True).bounding_box();assert alpha and beta
+        page.mouse.move(alpha['x']+alpha['width']/2,alpha['y']+alpha['height']/2);page.mouse.down();page.wait_for_timeout(700)
+        page.mouse.move(beta['x']+beta['width']/2,beta['y']+beta['height']/2,steps=14);page.wait_for_timeout(180);page.mouse.up()
+        wait(lambda:task_y('Бета задача') < task_y('Альфа задача'),'ручная перестановка задач')
+        manual_ids=[t['id'] for t in sorted(api('snapshot')['tasks'],key=lambda t:t['manualOrder'])]
+        by_text={t['text']:t['id'] for t in api('snapshot')['tasks']};assert manual_ids==[by_text['Бета задача'],by_text['Альфа задача']],manual_ids
+        click('radio','А-Я');wait(lambda:task_y('Альфа задача') < task_y('Бета задача'),'переключение с Manual')
+        click('radio','Вручную');wait(lambda:task_y('Бета задача') < task_y('Альфа задача'),'восстановление ручного порядка задач')
+        screen('tasks-manual');checks.append('задачи из голоса, четыре сортировки, long-press reorder и сохранение Manual')
+
         for language in ['ru','en','es','fr','de','uk','be','kk']:
             p=api('preferences');p.update(language=language,theme='dark' if language in ['uk','be','kk'] else 'light',autoRecord=False)
             api('preferences',p,'PUT');page.reload(wait_until='networkidle');page.wait_for_timeout(800)
