@@ -34,6 +34,7 @@ jobs:
           df -h .
           command -v cmake || brew install cmake
           command -v ffmpeg || brew install ffmpeg
+          command -v rsvg-convert || brew install librsvg
           python3 -m venv .build-python
           .build-python/bin/pip install pillow==11.3.0 piper-tts==1.4.2 fonttools==4.59.2
           .build-python/bin/python scripts/prepare-fonts.py
@@ -99,5 +100,5 @@ jobs:
           retention-days: 7
           if-no-files-found: error
           path: |
-            macos-output/Kasha-1.0.0-macOS-arm64.dmg
+            macos-output/Kasha-*-macOS-arm64.dmg
             macos-output/SHA256SUMS.txt
