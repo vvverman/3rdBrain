@@ -129,7 +129,7 @@ with sync_playwright() as pw:
         assert snapshot['notes'][0]['pinned']
         assert len([c for c in snapshot['captures'] if c['noteId']==note['id']])==2
         checks.append('подтверждение конфликта, отмена без остановки, добавление второго источника')
-        button('Попробовать без микрофона');third=ready()
+        tab('Главная');button('Попробовать без микрофона');third=ready()
         button('Отправить в проект');button('Создать проект');player()
         field('Название проекта','Можно отменить');button('Назад')
         page.get_by_role('button',name='Создать проект',exact=True).wait_for(state='visible')
@@ -143,7 +143,7 @@ with sync_playwright() as pw:
         wait(lambda:current() is None,'сохранение в только что созданный проект')
         assert any(n['projectId']==created['id'] for n in api('snapshot')['notes'])
         checks.append('создание проекта в выборе, возврат без потерь и сохранение в новый проект')
-        button('Попробовать без микрофона');ready();button('Отменить заметку');player();button('Удалить')
+        tab('Главная');button('Попробовать без микрофона');ready();button('Отменить заметку');player();button('Удалить')
         wait(lambda:current() is None,'удаление текущего');checks.append('создание тестового сигнала и удаление')
 
         # Задачи: два голосовых capture -> отдельные задачи -> все четыре сортировки
