@@ -12,12 +12,24 @@ kotlin {
     wasmJs { browser { commonWebpackConfig { outputFileName = "composeApp.js" } }; binaries.executable() }
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":kashaCore")); implementation(compose.runtime); implementation(compose.foundation)
-            implementation(compose.material3); implementation(compose.ui); implementation(compose.components.resources)
-            implementation(libs.kotlinx.coroutines.core); implementation(libs.kotlinx.serialization.json)
-            implementation(libs.ktor.client.core); implementation(libs.ktor.client.content.negotiation); implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(project(":kashaCore"))
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.ui)
+            implementation(compose.components.resources)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
         }
-        commonTest.dependencies { implementation(kotlin("test")); implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0") }
-        wasmJsMain.dependencies { implementation(libs.ktor.client.js) }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+        }
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.js)
+        }
     }
 }
