@@ -23,11 +23,12 @@ jobs:
         with:
           gradle-version: '8.14.5'
           cache-read-only: false
-      - name: Сборочные ресурсы
+      - name: Сборочные ресурсы и граница Brain UI
         run: |
           command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y ffmpeg)
           python -m pip install fonttools==4.59.2 playwright==1.55.0
           python scripts/prepare-fonts.py
+          python scripts/check-ui-boundary.py
           bash -n run-web.sh scripts/gradle.sh
       - name: Общий код, состояния интерфейса, диск и production WebAssembly
         run: |
