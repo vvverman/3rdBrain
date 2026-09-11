@@ -14,8 +14,11 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Проверка бренда
-        run: python3 scripts/check-brand-boundary.py
+      - name: Проверка архитектурных границ
+        run: |
+          python3 scripts/check-brand-boundary.py
+          python3 scripts/check-local-only.py
+          python3 scripts/check-ui-boundary.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -23,7 +26,7 @@ jobs:
           architecture: aarch64
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.14.5'
+          gradle-version: '9.3.1'
           cache-read-only: false
       - name: Инструменты только сборочного Mac
         run: |
@@ -32,12 +35,17 @@ jobs:
           command -v cmake || brew install cmake
           command -v ffmpeg || brew install ffmpeg
           python3 -m venv .build-python
-          .build-python/bin/pip install pillow==11.3.0 piper-tts==1.4.2
+          .build-python/bin/pip install pillow==11.3.0 piper-tts==1.4.2 fonttools==4.59.2
+          .build-python/bin/python scripts/prepare-fonts.py
           .build-python/bin/python desktopApp/packaging/make-icon.py
-      - name: Все тесты Kotlin, включая нативные адаптеры
+      - name: Kasha Core iOS/JVM и все Kotlin-тесты
         run: |
           set -o pipefail
-          gradle -Pkotlin.compiler.execution.strategy=in-process :shared:jvmTest :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee macos-compile.log
+          gradle -Pkotlin.compiler.execution.strategy=in-process \
+            :kashaCore:jvmTest \
+            :kashaCore:compileKotlinIosArm64 \
+            :kashaCore:compileKotlinIosSimulatorArm64 \
+            :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee macos-compile.log
       - uses: actions/cache/restore@v4
         id: native-cache
         with:
@@ -80,7 +88,7 @@ jobs:
             macos-output/self-test/*.json
             macos-output/self-test/*.log
             desktopApp/build/compose/logs
-            shared/build/test-results
+            kashaCore/build/test-results
             composeApp/build/test-results
             runtime/build/test-results
             desktopApp/build/test-results
