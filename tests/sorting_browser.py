@@ -61,8 +61,11 @@ with sync_playwright() as pw:
             page.wait_for_timeout(100)
         raise AssertionError('Не дождались: ' + description)
 
+    def role_locator(role, name):
+        return page.get_by_role(role, name=name) if hasattr(name, 'search') else page.get_by_role(role, name=name, exact=True)
+
     def role_click(role, name):
-        locator = page.get_by_role(role, name=name, exact=True)
+        locator = role_locator(role, name)
         locator.wait_for(state='visible', timeout=30000)
         box = locator.bounding_box()
         assert box and box['height'] > 0, name
@@ -80,7 +83,6 @@ with sync_playwright() as pw:
         locator.wait_for(state='visible', timeout=30000)
         box = locator.bounding_box()
         assert box and box['height'] > 0, name
-        # Compose WASM держит семантический DOM поверх canvas, pointer получает canvas.
         page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
         page.wait_for_timeout(250)
 
@@ -94,14 +96,24 @@ with sync_playwright() as pw:
         page.keyboard.insert_text(value)
         page.wait_for_timeout(350)
 
-    def y(text):
-        box = page.get_by_text(text, exact=True).bounding_box()
-        assert box, text
+    def item(label):
+        # Compose WASM объединяет текст карточки и вторичный текст в одно accessible-name.
+        # Ищем пользовательскую карточку по началу её семантического имени.
+        locator = page.get_by_role('button', name=re.compile(r'^' + re.escape(label) + r'(?:\s|$)'))
+        if locator.count():
+            return locator.first
+        return page.get_by_text(label, exact=True)
+
+    def item_y(label):
+        locator = item(label)
+        locator.wait_for(state='visible', timeout=30000)
+        box = locator.bounding_box()
+        assert box, label
         return box['y']
 
     def drag(source, target):
-        a = page.get_by_text(source, exact=True).bounding_box()
-        b = page.get_by_text(target, exact=True).bounding_box()
+        a = item(source).bounding_box()
+        b = item(target).bounding_box()
         assert a and b, (source, target)
         page.mouse.move(a['x'] + a['width'] / 2, a['y'] + a['height'] / 2)
         page.mouse.down()
@@ -124,7 +136,7 @@ with sync_playwright() as pw:
         field('Название заметки', title)
         field('Текст заметки', body)
         button('Отправить в проект')
-        role_click('button', re.compile('^' + re.escape(project_title)))
+        role_click('button', re.compile(r'^' + re.escape(project_title)))
         button('Новая заметка')
         wait(lambda: current() is None, 'сохранение заметки ' + title)
 
@@ -133,6 +145,10 @@ with sync_playwright() as pw:
         page.locator('canvas').first.wait_for(state='visible')
         page.get_by_role('button', name='Главная', exact=True).wait_for(state='visible')
 
+        # Основной E2E перед этим уже создал второй проект и две задачи.
+        existing_titles = {p['title'] for p in api('snapshot')['projects']}
+        assert {'Твой первый проект', 'Рабочие идеи'} <= existing_titles, existing_titles
+
         # --- Проекты: все четыре режима + ручная перестановка ---
         tab('Проекты')
         button('Новый проект')
@@ -140,22 +156,22 @@ with sync_playwright() as pw:
         field('Что сюда складывать', 'Проект для проверки сортировки')
         button('Сохранить')
         for title in ['Твой первый проект', 'Рабочие идеи', 'Альфа проект']:
-            page.get_by_text(title, exact=True).wait_for(state='visible')
+            item(title).wait_for(state='visible', timeout=30000)
 
         text_click('А-Я')
-        wait(lambda: y('Альфа проект') < y('Рабочие идеи') < y('Твой первый проект'), 'алфавитная сортировка проектов')
+        wait(lambda: item_y('Альфа проект') < item_y('Рабочие идеи') < item_y('Твой первый проект'), 'алфавитная сортировка проектов')
         text_click('Создано')
-        wait(lambda: y('Альфа проект') < y('Рабочие идеи') < y('Твой первый проект'), 'сортировка проектов по созданию')
+        wait(lambda: item_y('Альфа проект') < item_y('Рабочие идеи') < item_y('Твой первый проект'), 'сортировка проектов по созданию')
         text_click('Изменено')
-        wait(lambda: y('Альфа проект') < y('Рабочие идеи') < y('Твой первый проект'), 'сортировка проектов по изменению')
+        wait(lambda: item_y('Альфа проект') < item_y('Рабочие идеи') < item_y('Твой первый проект'), 'сортировка проектов по изменению')
         text_click('Вручную')
-        wait(lambda: y('Твой первый проект') < y('Рабочие идеи') < y('Альфа проект'), 'исходный Manual проектов')
+        wait(lambda: item_y('Твой первый проект') < item_y('Рабочие идеи') < item_y('Альфа проект'), 'исходный Manual проектов')
         drag('Альфа проект', 'Твой первый проект')
-        wait(lambda: y('Альфа проект') < y('Твой первый проект') < y('Рабочие идеи'), 'ручная перестановка проектов')
+        wait(lambda: item_y('Альфа проект') < item_y('Твой первый проект') < item_y('Рабочие идеи'), 'ручная перестановка проектов')
         text_click('А-Я')
-        wait(lambda: y('Альфа проект') < y('Рабочие идеи') < y('Твой первый проект'), 'выход из Manual проектов')
+        wait(lambda: item_y('Альфа проект') < item_y('Рабочие идеи') < item_y('Твой первый проект'), 'выход из Manual проектов')
         text_click('Вручную')
-        wait(lambda: y('Альфа проект') < y('Твой первый проект') < y('Рабочие идеи'), 'восстановление Manual проектов')
+        wait(lambda: item_y('Альфа проект') < item_y('Твой первый проект') < item_y('Рабочие идеи'), 'восстановление Manual проектов')
 
         snapshot = api('snapshot')
         project_manual = [p['title'] for p in sorted(snapshot['projects'], key=lambda p: p['manualOrder'])]
@@ -165,12 +181,11 @@ with sync_playwright() as pw:
         make_note('Якорь заметка', 'Якорь заметка для проверки ручного порядка.')
         make_note('Альфа заметка', 'Альфа заметка для проверки сортировки.')
 
-        # В основном E2E старая заметка была закреплена. Для чистой проверки четырёх
-        # sort-mode снимаем pin: вне Manual закрепление штатно имеет приоритет.
-        # Затем меняем заметку последней: UPDATED обязан поднять именно её.
+        # В основном E2E старая заметка закреплена. Для чистого сравнения sort-mode
+        # снимаем pin; вне Manual закрепление намеренно имеет приоритет.
         tab('Проекты')
-        role_click('button', re.compile('^Твой первый проект'))
-        role_click('button', re.compile('^Отредактированная заметка'))
+        role_click('button', re.compile(r'^Твой первый проект'))
+        role_click('button', re.compile(r'^Отредактированная заметка'))
         button('Открепить')
         button('Править')
         field('Текст заметки', 'Текст обновлён последним специально для проверки даты изменения.')
@@ -178,22 +193,22 @@ with sync_playwright() as pw:
         button('Назад')
 
         for title in ['Отредактированная заметка', 'Якорь заметка', 'Альфа заметка']:
-            page.get_by_text(title, exact=True).wait_for(state='visible')
+            item(title).wait_for(state='visible', timeout=30000)
 
         text_click('А-Я')
-        wait(lambda: y('Альфа заметка') < y('Отредактированная заметка') < y('Якорь заметка'), 'алфавитная сортировка заметок')
+        wait(lambda: item_y('Альфа заметка') < item_y('Отредактированная заметка') < item_y('Якорь заметка'), 'алфавитная сортировка заметок')
         text_click('Создано')
-        wait(lambda: y('Альфа заметка') < y('Якорь заметка') < y('Отредактированная заметка'), 'сортировка заметок по созданию')
+        wait(lambda: item_y('Альфа заметка') < item_y('Якорь заметка') < item_y('Отредактированная заметка'), 'сортировка заметок по созданию')
         text_click('Изменено')
-        wait(lambda: y('Отредактированная заметка') < y('Альфа заметка') < y('Якорь заметка'), 'сортировка заметок по изменению')
+        wait(lambda: item_y('Отредактированная заметка') < item_y('Альфа заметка') < item_y('Якорь заметка'), 'сортировка заметок по изменению')
         text_click('Вручную')
-        wait(lambda: y('Отредактированная заметка') < y('Якорь заметка') < y('Альфа заметка'), 'исходный Manual заметок')
+        wait(lambda: item_y('Отредактированная заметка') < item_y('Якорь заметка') < item_y('Альфа заметка'), 'исходный Manual заметок')
         drag('Якорь заметка', 'Отредактированная заметка')
-        wait(lambda: y('Якорь заметка') < y('Отредактированная заметка') < y('Альфа заметка'), 'ручная перестановка заметок')
+        wait(lambda: item_y('Якорь заметка') < item_y('Отредактированная заметка') < item_y('Альфа заметка'), 'ручная перестановка заметок')
         text_click('А-Я')
-        wait(lambda: y('Альфа заметка') < y('Отредактированная заметка') < y('Якорь заметка'), 'выход из Manual заметок')
+        wait(lambda: item_y('Альфа заметка') < item_y('Отредактированная заметка') < item_y('Якорь заметка'), 'выход из Manual заметок')
         text_click('Вручную')
-        wait(lambda: y('Якорь заметка') < y('Отредактированная заметка') < y('Альфа заметка'), 'восстановление Manual заметок')
+        wait(lambda: item_y('Якорь заметка') < item_y('Отредактированная заметка') < item_y('Альфа заметка'), 'восстановление Manual заметок')
 
         snapshot = api('snapshot')
         first_project = next(p for p in snapshot['projects'] if p['title'] == 'Твой первый проект')
@@ -207,11 +222,11 @@ with sync_playwright() as pw:
         page.reload(wait_until='networkidle')
         page.get_by_role('button', name='Главная', exact=True).wait_for(state='visible')
         tab('Проекты')
-        wait(lambda: y('Альфа проект') < y('Твой первый проект') < y('Рабочие идеи'), 'Manual проектов после reload')
-        role_click('button', re.compile('^Твой первый проект'))
-        wait(lambda: y('Якорь заметка') < y('Отредактированная заметка') < y('Альфа заметка'), 'Manual заметок после reload')
+        wait(lambda: item_y('Альфа проект') < item_y('Твой первый проект') < item_y('Рабочие идеи'), 'Manual проектов после reload')
+        role_click('button', re.compile(r'^Твой первый проект'))
+        wait(lambda: item_y('Якорь заметка') < item_y('Отредактированная заметка') < item_y('Альфа заметка'), 'Manual заметок после reload')
         tab('Задачи')
-        wait(lambda: y('Бета задача') < y('Альфа задача'), 'Manual задач после reload')
+        wait(lambda: item_y('Бета задача') < item_y('Альфа задача'), 'Manual задач после reload')
 
         assert not errors, errors
         page.screenshot(path=str(OUT / 'sorting-manual-after-reload.png'))
