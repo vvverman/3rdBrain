@@ -92,6 +92,9 @@ fun Application.brainModule(store: FileBrainStore, processing: LocalProcessing, 
         post("/api/notes/{id}/pin") { call.respond(store.pinNote(call.parameters["id"]!!, call.receive<PinRequest>().pinned)) }
 
         put("/api/tasks/{id}") { call.respond(store.updateTask(call.parameters["id"]!!, call.receive<TaskUpdate>())) }
+        put("/api/tasks/{id}/schedule") { call.respond(store.rescheduleTask(call.parameters["id"]!!, call.receive<TaskScheduleUpdate>())) }
+        post("/api/tasks/{id}/complete") { call.respond(store.completeTask(call.parameters["id"]!!)) }
+        delete("/api/tasks/{id}") { store.deleteTask(call.parameters["id"]!!); call.respond(mapOf("ok" to true)) }
         post("/api/tasks/order") { call.respond(store.orderTasks(call.receive<OrderRequest>().ids)) }
 
         post("/api/captures/audio") {
