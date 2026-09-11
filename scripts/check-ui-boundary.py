@@ -27,6 +27,9 @@ for path in ROOT.rglob("*.kt"):
             if CONTROL_PATTERN.search(line):
                 violations.append(f"{path.relative_to(ROOT.parents[4])}:{number}: базовый контрол вне Kasha UI: {line.strip()}")
     for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith(("//", "/*", "*", "*/")):
+            continue
         if any(pattern.lower() in line.lower() for pattern in FORBIDDEN_ICON_PATTERNS):
             violations.append(f"{path.relative_to(ROOT.parents[4])}:{number}: запрещённый источник иконок: {line.strip()}")
 
