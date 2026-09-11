@@ -64,26 +64,39 @@ with sync_playwright() as pw:
     def locator(role, name):
         return page.get_by_role(role, name=name) if hasattr(name, 'search') else page.get_by_role(role, name=name, exact=True)
 
+    def visible_item(items, description, seconds=30):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            try:
+                count = items.count()
+            except Exception:
+                count = 0
+            for index in range(count):
+                item = items.nth(index)
+                try:
+                    if item.is_visible():
+                        box = item.bounding_box()
+                        if box and box['width'] > 0 and box['height'] > 0:
+                            return item, box
+                except Exception:
+                    pass
+            page.wait_for_timeout(100)
+        raise AssertionError('Не найден видимый элемент: ' + description)
+
     def click(role, name):
-        item = locator(role, name)
-        item.wait_for(state='visible', timeout=30000)
-        box = item.bounding_box(); assert box, name
+        _, box = visible_item(locator(role, name), str(name))
         page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
         page.wait_for_timeout(220)
 
     def button(name): click('button', name)
 
     def text_click(name):
-        item = page.get_by_text(name, exact=True)
-        item.wait_for(state='visible', timeout=30000)
-        box = item.bounding_box(); assert box, name
+        _, box = visible_item(page.get_by_text(name, exact=True), name)
         page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
         page.wait_for_timeout(220)
 
     def field(label, value):
-        item = page.get_by_role('textbox', name=label, exact=True)
-        item.wait_for(state='visible', timeout=30000)
-        box = item.bounding_box(); assert box, label
+        _, box = visible_item(page.get_by_role('textbox', name=label, exact=True), label)
         page.mouse.click(box['x'] + min(20, box['width'] / 2), box['y'] + min(20, box['height'] / 2))
         page.wait_for_timeout(120)
         page.keyboard.press('Control+a'); page.keyboard.press('Backspace')
@@ -92,16 +105,16 @@ with sync_playwright() as pw:
         page.wait_for_timeout(550)
 
     def card(label):
-        return page.get_by_role('button', name=re.compile(r'^' + re.escape(label) + r'(?:\s|$)')).first
+        items = page.get_by_role('button', name=re.compile(r'^' + re.escape(label) + r'(?:\s|$)'))
+        return visible_item(items, label)[0]
 
     def y(label):
-        item = card(label); item.wait_for(state='visible', timeout=30000)
+        item = card(label)
         box = item.bounding_box(); assert box, label
         return box['y']
 
     def drag(source, target):
         a = card(source); b = card(target)
-        a.wait_for(state='visible', timeout=30000); b.wait_for(state='visible', timeout=30000)
         aa = a.bounding_box(); bb = b.bounding_box(); assert aa and bb
         page.mouse.move(aa['x'] + aa['width']/2, aa['y'] + aa['height']/2)
         page.mouse.down(); page.wait_for_timeout(700)
@@ -130,7 +143,7 @@ with sync_playwright() as pw:
     try:
         page.goto(BASE, wait_until='networkidle', timeout=60000)
         page.locator('canvas').first.wait_for(state='visible')
-        page.get_by_role('button', name='Главная', exact=True).wait_for(state='visible')
+        visible_item(page.get_by_role('button', name='Главная', exact=True), 'Главная')
 
         # --- Проекты ---
         button('Проекты')
@@ -140,7 +153,7 @@ with sync_playwright() as pw:
             field('Что сюда складывать', 'Проверка сортировки')
             button('Сохранить')
         for title in ['Твой первый проект', 'Бета сортировка', 'Альфа сортировка']:
-            card(title).wait_for(state='visible', timeout=30000)
+            card(title)
 
         text_click('А-Я')
         wait(lambda: y('Альфа сортировка') < y('Бета сортировка') < y('Твой первый проект'), 'алфавит проектов')
@@ -156,11 +169,10 @@ with sync_playwright() as pw:
         make_note('Бета заметка\nВторой текст', 'Альфа сортировка')
         make_note('Альфа заметка\nПервый текст', 'Альфа сортировка')
         button('Проекты'); click('button', re.compile(r'^Альфа сортировка'))
-        card('Бета заметка').wait_for(state='visible'); card('Альфа заметка').wait_for(state='visible')
+        card('Бета заметка'); card('Альфа заметка')
         text_click('А-Я'); wait(lambda: y('Альфа заметка') < y('Бета заметка'), 'алфавит заметок')
         text_click('Создано'); wait(lambda: y('Альфа заметка') < y('Бета заметка'), 'создание заметок')
         text_click('Вручную')
-        # Исходно Бета создана раньше и идёт первой; переносим Альфу вверх.
         drag('Альфа заметка', 'Бета заметка')
         wait(lambda: y('Альфа заметка') < y('Бета заметка'), 'manual заметок')
 
@@ -168,18 +180,17 @@ with sync_playwright() as pw:
         make_task('Бета задача\nТело бета')
         make_task('Альфа задача\nТело альфа')
         button('Задачи')
-        card('Бета задача').wait_for(state='visible'); card('Альфа задача').wait_for(state='visible')
+        card('Бета задача'); card('Альфа задача')
         text_click('А-Я'); wait(lambda: y('Альфа задача') < y('Бета задача'), 'алфавит задач')
         text_click('Создано'); wait(lambda: y('Альфа задача') < y('Бета задача'), 'создание задач')
         text_click('Вручную')
         drag('Альфа задача', 'Бета задача')
         wait(lambda: y('Альфа задача') < y('Бета задача'), 'manual задач')
 
-        # Manual должен пережить переключение сортировки и reload.
         text_click('А-Я'); wait(lambda: y('Альфа задача') < y('Бета задача'), 'выход из manual')
         text_click('Вручную'); wait(lambda: y('Альфа задача') < y('Бета задача'), 'возврат manual')
         page.reload(wait_until='networkidle')
-        page.get_by_role('button', name='Главная', exact=True).wait_for(state='visible')
+        visible_item(page.get_by_role('button', name='Главная', exact=True), 'Главная')
         button('Задачи')
         wait(lambda: y('Альфа задача') < y('Бета задача'), 'manual задач после reload')
 
