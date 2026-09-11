@@ -1,14 +1,12 @@
 package brain.studio
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,36 +19,49 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Единственный набор продуктовых иконок Kasha.
- * Геометрия: Phosphor Icons Fill (MIT). Motion-язык: адаптация open-source animated Phosphor для Compose Multiplatform.
+ * Геометрия: Phosphor Fill. Motion: порт MIT animated-Phosphor в Compose Multiplatform.
  */
 enum class Glyph {
     RECORD, PLAY, PAUSE, STOP, SEND, HOME, FOLDER, TASKS, SETTINGS,
     BACK, NEXT, PLUS, DELETE, MAGIC, MORE, PIN, EDIT, UP, DOWN, CHECK,
 }
 
-private data class Motion(val rotate: Float = 0f, val x: Float = 0f, val y: Float = 0f, val scale: Float = 0f)
+private data class Motion(
+    val rotate: Float = 0f,
+    val x: Float = 0f,
+    val y: Float = 0f,
+    val scale: Float = 0f,
+    val duration: Int = 400,
+    val returns: Boolean = true,
+)
 
 private fun motion(glyph: Glyph): Motion = when (glyph) {
+    // ln-dev7/icons-animated: arrow 0 -> ±40 -> 0 in a 256 viewport, 0.4 s.
+    Glyph.BACK -> Motion(x = -3.75f)
+    Glyph.NEXT -> Motion(x = 3.75f)
+    Glyph.UP -> Motion(y = -3.75f)
+    Glyph.DOWN -> Motion(y = 3.75f)
+    // gear rotates to 180° while active and returns when interaction ends.
+    Glyph.SETTINGS -> Motion(rotate = 180f, duration = 500, returns = false)
+    // pencil wiggles; trash lifts the lid and compresses the body. Filled glyphs use the same motion language as one shape.
+    Glyph.EDIT -> Motion(rotate = 3f, duration = 350)
+    Glyph.DELETE -> Motion(y = -.5f, scale = -.05f)
+    // plus/check/house originals reveal subpaths. Fill variants use a compact reveal pulse.
+    Glyph.PLUS -> Motion(scale = .10f, duration = 300)
+    Glyph.CHECK -> Motion(scale = .10f)
+    Glyph.HOME -> Motion(scale = .06f, duration = 500)
+    // list changes line arrangement; the filled list mark gets a short compression pulse.
+    Glyph.TASKS -> Motion(scale = -.06f, duration = 420)
+    // Product-only Phosphor glyphs absent from the upstream motion catalog keep restrained, matching timing.
     Glyph.RECORD -> Motion(scale = .08f)
     Glyph.PLAY -> Motion(x = 2.4f, scale = .035f)
     Glyph.PAUSE -> Motion(scale = -.045f)
     Glyph.STOP -> Motion(scale = -.06f)
     Glyph.SEND -> Motion(rotate = -7f, x = 3.5f, y = -2.5f)
-    Glyph.HOME -> Motion(y = -1.6f, scale = .035f)
     Glyph.FOLDER -> Motion(rotate = -3.5f, y = -1.4f)
-    Glyph.TASKS -> Motion(x = 1.8f, scale = .03f)
-    Glyph.SETTINGS -> Motion(rotate = 16f)
-    Glyph.BACK -> Motion(x = -2.6f)
-    Glyph.NEXT -> Motion(x = 2.6f)
-    Glyph.PLUS -> Motion(rotate = 12f, scale = .045f)
-    Glyph.DELETE -> Motion(rotate = -4f, y = 1.8f)
     Glyph.MAGIC -> Motion(rotate = 7f, y = -1.8f, scale = .04f)
     Glyph.MORE -> Motion(scale = .07f)
     Glyph.PIN -> Motion(rotate = 7f, y = -1.2f)
-    Glyph.EDIT -> Motion(x = 1.8f, y = -1.8f)
-    Glyph.UP -> Motion(y = -2.6f)
-    Glyph.DOWN -> Motion(y = 2.6f)
-    Glyph.CHECK -> Motion(scale = .08f)
 }
 
 private val paths = mapOf(
@@ -65,7 +76,7 @@ private val paths = mapOf(
     Glyph.SETTINGS to "M32,80a8,8,0,0,1,8-8H77.17a28,28,0,0,1,53.66,0H216a8,8,0,0,1,0,16H130.83a28,28,0,0,1-53.66,0H40A8,8,0,0,1,32,80Zm184,88H194.83a28,28,0,0,0-53.66,0H40a8,8,0,0,0,0,16H141.17a28,28,0,0,0,53.66,0H216a8,8,0,0,0,0-16Z",
     Glyph.BACK to "M168,48V208a8,8,0,0,1-13.66,5.66l-80-80a8,8,0,0,1,0-11.32l80-80A8,8,0,0,1,168,48Z",
     Glyph.NEXT to "M181.66,133.66l-80,80A8,8,0,0,1,88,208V48a8,8,0,0,1,13.66-5.66l80,80A8,8,0,0,1,181.66,133.66Z",
-    Glyph.PLUS to "M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,1,16-16ZM184,136H136v48a8,8,0,0,1-16,0V136H72a8,8,0,0,1,0-16h48V72a8,8,0,0,1,16,0v48h48a8,8,0,0,1,0,16Z",
+    Glyph.PLUS to "M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM184,136H136v48a8,8,0,0,1-16,0V136H72a8,8,0,0,1,0-16h48V72a8,8,0,0,1,16,0v48h48a8,8,0,0,1,0,16Z",
     Glyph.DELETE to "M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM112,168a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm0-120H96V40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8Z",
     Glyph.MAGIC to "M248,152a8,8,0,0,1-8,8H224v16a8,8,0,0,1-16,0V160H192a8,8,0,0,1,0-16h16V128a8,8,0,0,1,16,0v16h16A8,8,0,0,1,248,152ZM56,72H72V88a8,8,0,0,0,16,0V72h16a8,8,0,0,0,0-16H88V40a8,8,0,0,0-16,0V56H56a8,8,0,0,0,0,16ZM184,192h-8v-8a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16ZM219.31,80,80,219.31a16,16,0,0,1-22.62,0L36.68,198.63a16,16,0,0,1,0-22.63L176,36.69a16,16,0,0,1,22.63,0l20.68,20.68A16,16,0,0,1,219.31,80ZM208,68.69,187.31,48l-32,32L176,100.69Z",
     Glyph.MORE to "M224,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V96A16,16,0,0,0,224,80ZM60,140a12,12,0,1,1,12-12A12,12,0,0,1,60,140Zm68,0a12,12,0,1,1,12-12A12,12,0,0,1,128,140Zm68,0a12,12,0,1,1,12-12A12,12,0,0,1,196,140Z",
@@ -97,27 +108,31 @@ fun KashaIcon(
     animated: Boolean = false,
 ) {
     val image = remember(glyph) { vector(glyph) }
-    val transition = rememberInfiniteTransition(label = "KashaIcon-${glyph.name}")
-    val phase = transition.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(440, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "KashaIconMotion-${glyph.name}",
-    ).value
-    val m = motion(glyph)
+    val spec = remember(glyph) { motion(glyph) }
+    val phase = remember(glyph) { Animatable(0f) }
+    LaunchedEffect(animated, glyph) {
+        if (!animated) {
+            phase.animateTo(0f, tween((spec.duration / 2).coerceAtLeast(100), easing = FastOutSlowInEasing))
+        } else if (spec.returns) {
+            phase.snapTo(0f)
+            phase.animateTo(1f, tween(spec.duration / 2, easing = FastOutSlowInEasing))
+            phase.animateTo(0f, tween(spec.duration / 2, easing = FastOutSlowInEasing))
+        } else {
+            phase.animateTo(1f, tween(spec.duration, easing = FastOutSlowInEasing))
+        }
+    }
     val density = LocalDensity.current
-    val x = with(density) { m.x.dp.toPx() }
-    val y = with(density) { m.y.dp.toPx() }
-    val amount = if (animated) phase else 0f
+    val x = with(density) { spec.x.dp.toPx() }
+    val y = with(density) { spec.y.dp.toPx() }
     Icon(
         imageVector = image,
         contentDescription = null,
         tint = color,
         modifier = modifier.graphicsLayer {
-            rotationZ = m.rotate * amount
-            translationX = x * amount
-            translationY = y * amount
-            val s = 1f + m.scale * kotlin.math.abs(amount)
+            rotationZ = spec.rotate * phase.value
+            translationX = x * phase.value
+            translationY = y * phase.value
+            val s = 1f + spec.scale * phase.value
             scaleX = s
             scaleY = s
         },
