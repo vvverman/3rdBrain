@@ -7,7 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
@@ -28,14 +27,19 @@ import kotlinx.coroutines.launch
             Spacer(Modifier.height(18.dp));if(s.repository.simulated)Text(s.tr("demoNotice"),style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant,textAlign=TextAlign.Center)
         }
         s.current!=null->Column(Modifier.fillMaxSize().padding(top=16.dp,bottom=14.dp)){
-            // Прокручивается только текст. Основные действия не прячутся за закреплённым плеером.
+            // Создание и последующее редактирование заметки используют один и тот же BrainEditableNote.
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())){
-                Editor(s.title,s::editTitle,s.tr("untitled"),Modifier.fillMaxWidth(),title=true)
-                Spacer(Modifier.height(20.dp));Editor(s.text,s::editText,s.tr("body"),Modifier.fillMaxWidth())
+                BrainEditableNote(
+                    title=s.title,onTitleChange=s::editTitle,
+                    body=s.text,onBodyChange=s::editText,
+                    titleLabel=s.tr("untitled"),bodyLabel=s.tr("body"),
+                    modifier=Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(20.dp))
                 if(s.current?.simulated==true)Text(s.tr("demoNotice"),style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
                 if(s.current?.status==CaptureStatus.FAILED){
                     Text(s.tr("processingFailed"),style=MaterialTheme.typography.bodySmall,color=c.error)
+                    Spacer(Modifier.height(10.dp))
                     Action(s.tr("retry"),{scope.launch{s.retry()}},modifier=Modifier.fillMaxWidth())
                 }
                 Spacer(Modifier.height(14.dp))
@@ -53,10 +57,9 @@ import kotlinx.coroutines.launch
             Spacer(Modifier.height(16.dp))
             Text(s.tr("emptyBody"),style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant,
                 modifier=Modifier.widthIn(max=250.dp))
-            // Рисунок занимает только оставшееся место. Даже на низком окне он
-            // не рисуется поверх текста, восстановления и кнопки демонстрации.
-            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds(),contentAlignment=Alignment.CenterEnd) {
-                BotanicalMark(Modifier.width(220.dp).fillMaxHeight().padding(top=18.dp,bottom=16.dp))
+            Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
+                // Вместо декоративной «ветки» — понятная метафора голосовой заметки.
+                BrainCaptureMark(Modifier.width(238.dp).height(264.dp))
             }
             if(s.pending) {
                 Text(s.tr("recoveryNotice"),style=MaterialTheme.typography.bodySmall)
@@ -70,7 +73,7 @@ import kotlinx.coroutines.launch
 }
 @Composable internal fun GlobalPlayer(s:StudioState){
     val scope=rememberCoroutineScope();val c=MaterialTheme.colorScheme;val loaded=s.loadedAudio
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(c.surface).padding(12.dp).semantics{contentDescription="global-player"}){
+    BrainPanel(Modifier.fillMaxWidth().semantics{contentDescription="global-player"},padding=12.dp){
         Row(verticalAlignment=Alignment.CenterVertically){
             when{
                 s.controlBusy->ProcessingRing(Modifier.size(46.dp))
