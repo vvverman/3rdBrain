@@ -4,15 +4,13 @@ import brain.model.Capture
 import brain.model.CaptureStatus
 import brain.model.Project
 import brain.studio.Intelligence
-import kotlinx.coroutines.CancellationException
 import kotlin.math.max
 
 /**
  * Общая AI/text-оркестрация одной голосовой записи.
  *
- * Здесь нет файлов, ffmpeg, потоков, HTTP или API конкретной ОС. Любая платформа
- * передаёт уже транскрибированный Capture, список проектов и реализацию локального
- * Intelligence. В результате получает новое валидное состояние Capture.
+ * Заголовок больше не является отдельным пользовательским или AI-полем:
+ * он всегда вычисляется из первой непустой строки текста, как в Apple Notes.
  */
 class CaptureWorkflow(private val intelligence: Intelligence) {
 
@@ -26,19 +24,9 @@ class CaptureWorkflow(private val intelligence: Intelligence) {
     suspend fun finish(capture: Capture, projects: List<Project>, language: String): Capture {
         require(capture.isInbox)
         val original = capture.textToSave
-        val title = if (capture.draftEdited) {
-            capture.title
-        } else {
-            runCatching { intelligence.title(original, language) }
-                .getOrElse {
-                    if (it is CancellationException) throw it
-                    NoteText.title(original)
-                }
-                .let { LocalModelText.safeTitle(it, original) }
-        }
         val scores = validatedScores(projects, intelligence.rank(original, projects, language))
         return capture.copy(
-            title = title.ifBlank { NoteText.title(original) },
+            title = NoteText.title(original),
             relevance = scores,
             rankingApplied = true,
             status = CaptureStatus.READY,
@@ -56,6 +44,7 @@ class CaptureWorkflow(private val intelligence: Intelligence) {
         require(text.length <= max(200, original.length * 2)) { "Модель добавила слишком много текста. Оставлен исходный текст" }
         LocalModelText.requirePreserved(original, text)
         return capture.copy(
+            title = NoteText.title(text),
             preparedText = text,
             draftEdited = true,
             llmApplied = true,
@@ -71,6 +60,7 @@ class CaptureWorkflow(private val intelligence: Intelligence) {
         require(capture.isInbox && !capture.status.isWorking)
         val scores = validatedScores(projects, intelligence.rank(capture.textToSave, projects, language))
         return capture.copy(
+            title = NoteText.title(capture.textToSave),
             relevance = scores,
             rankingApplied = true,
             simulated = intelligence.simulated,
