@@ -1,15 +1,38 @@
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.androidKotlinMultiplatformLibrary)
 }
-compose.resources { publicResClass = true; packageOfResClass = "brain.studio.resources"; generateResClass = always }
+
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "brain.studio.resources"
+    generateResClass = always
+}
+
 kotlin {
-    jvm(); jvmToolchain(21)
+    jvm()
+    jvmToolchain(21)
+
+    android {
+        namespace = "ru.vrmn.kasha.ui"
+        compileSdk = 36
+        minSdk = 26
+    }
+
+    iosArm64()
+    iosSimulatorArm64()
+
     @OptIn(ExperimentalWasmDsl::class)
-    wasmJs { browser { commonWebpackConfig { outputFileName = "composeApp.js" } }; binaries.executable() }
+    wasmJs {
+        browser { commonWebpackConfig { outputFileName = "composeApp.js" } }
+        binaries.executable()
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(project(":kashaCore"))
