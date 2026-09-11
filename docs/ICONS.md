@@ -55,3 +55,5 @@ React/Motion не входят в runtime Kasha: motion-паттерны пер�
 Продуктовые экраны не хранят SVG/path-данные и не импортируют сторонние icon libraries. Они используют только `Glyph` + `KashaIcon`/контролы Kasha UI.
 
 Новая иконка сначала добавляется в единый Phosphor-слой. Если для неё нужен motion, рядом должен существовать конкретный upstream-source и точный Compose-порт; иначе иконка остаётся статичной. Это правило одинаково для Desktop, Android, iOS и Web.
+
+`scripts/check-ui-boundary.py` автоматически проверяет этот whitelist в CI: неподтверждённый motion считается нарушением границы Kasha UI.
