@@ -13,9 +13,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
-      THIRDBRAIN_TOOLS_HOME: ${{ github.workspace }}/.local-models
+      KASHA_TOOLS_HOME: ${{ github.workspace }}/.local-models
     steps:
       - uses: actions/checkout@v4
+      - name: Проверка бренда
+        run: python3 scripts/check-brand-boundary.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -29,18 +31,18 @@ jobs:
         id: models-cache
         with:
           path: .local-models
-          key: local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
-          restore-keys: local-models-v1-${{ runner.os }}-
+          key: kasha-local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
+          restore-keys: kasha-local-models-v1-${{ runner.os }}-
       - name: Подготовить настоящие веса и движки
         run: |
           set -o pipefail
-          bash -n run-web.sh 'Запустить 3rdBrain.command' scripts/setup-models.sh tests/run-real-models.sh
+          bash -n run-web.sh 'Запустить Kasha.command' scripts/setup-models.sh tests/run-real-models.sh
           bash scripts/setup-models.sh 2>&1 | tee setup-models.log
       - uses: actions/cache/save@v4
         if: steps.models-cache.outputs.cache-hit != 'true'
         with:
           path: .local-models
-          key: local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
+          key: kasha-local-models-v1-${{ runner.os }}-${{ hashFiles('scripts/setup-models.sh') }}
       - name: Сборка и модульные тесты
         run: gradle --no-build-cache :shared:jvmTest :composeApp:jvmTest :runtime:test :runtime:installDist
       - name: Тестовый голос, не зависимость приложения
@@ -52,7 +54,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: real-models-${{ github.sha }}
+          name: kasha-real-models-${{ github.sha }}
           path: |
             setup-models.log
             models-runtime.log
