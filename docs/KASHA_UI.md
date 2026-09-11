@@ -31,6 +31,8 @@ Kasha UI — единственный продуктовый UI-слой Kasha �
 - `KashaDestinationSwitch`;
 - `KashaReorderableList` — manual order через long-press + drag.
 
+`KashaSortBar` и `KashaDestinationSwitch` — взаимоисключающие segmented controls. В Compose они объявлены через `selectableGroup` + `selectable` с `Role.RadioButton` и публикуют выбранное состояние, а не являются набором обычных кнопок.
+
 ## Иконки
 
 Единственный продуктовый источник геометрии — Phosphor. Для motion используются открытые MIT-реализации animated Phosphor, зафиксированные в `third_party`. Иконка в состоянии покоя остаётся Phosphor; анимация запускается только как реакция на взаимодействие и не должна быть постоянным декором.
