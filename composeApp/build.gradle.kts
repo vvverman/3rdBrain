@@ -20,7 +20,7 @@ kotlin {
 
     android {
         namespace = "ru.vrmn.kasha.ui"
-        compileSdk = 36
+        compileSdk = 37
         minSdk = 26
     }
 
