@@ -1,13 +1,9 @@
 package brain.studio
 
-import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.*
 import kotlinx.coroutines.*
 
@@ -47,15 +43,9 @@ fun StudioApp(state: StudioState) {
                         }
                     }
                     GlobalPlayer(state)
-                    Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(Triple(Tab.HOME, "home", Glyph.HOME), Triple(Tab.PROJECTS, "projects", Glyph.FOLDER), Triple(Tab.SETTINGS, "settings", Glyph.SETTINGS)).forEach { (tab, key, icon) ->
-                            val selected = state.tab == tab
-                            Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Tab) { state.navigate(tab) }
-                                .semantics(mergeDescendants = true) { this.selected = selected }.padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Symbol(icon, Modifier.size(20.dp), if (selected) colors.onSurface else colors.onSurfaceVariant)
-                                Spacer(Modifier.height(5.dp))
-                                Text(state.tr(key), style = MaterialTheme.typography.labelSmall, color = if (selected) colors.onSurface else colors.onSurfaceVariant)
-                            }
+                            BrainNavigationItem(state.tr(key), icon, state.tab == tab, { state.navigate(tab) }, Modifier.weight(1f))
                         }
                     }
                 }
