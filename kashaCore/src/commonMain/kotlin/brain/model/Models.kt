@@ -19,7 +19,6 @@ import kotlinx.serialization.Serializable
 @Serializable data class Note(
     val id: String,
     val projectId: String,
-    /** Кэш первой непустой строки body для сортировки и старых данных. В UI отдельно не редактируется. */
     val title: String,
     val body: String,
     val createdAt: Long,
@@ -118,8 +117,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class DistributionRequest(val projectId: String, val noteId: String? = null, val title: String? = null)
 @Serializable data class TaskDistributionRequest(
     val projectId: String? = null,
-    val dueAt: Long,
-    val reminderRepeat: ReminderRepeat,
+    val dueAt: Long = Long.MAX_VALUE,
+    val reminderRepeat: ReminderRepeat = ReminderRepeat.HOURLY,
 )
 @Serializable data class TranscriptPiece(val start: Double, val end: Double, val text: String)
 @Serializable data class AudioSpan(val originalStart: Double, val duration: Double, val compactStart: Double)
