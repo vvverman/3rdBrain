@@ -16,7 +16,6 @@ import java.security.MessageDigest
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 
-/** Сетевые URL моделей принадлежат platform runtime, а не Core. */
 data class ModelPackageSpec(
     val engineId: String,
     val fileName: String,
@@ -59,10 +58,6 @@ object JvmModelManifest {
     ).associateBy { it.engineId }
 }
 
-/**
- * Скачивает модель во временный файл, считает SHA-256 на потоке и только после
- * успешной проверки атомарно делает её доступной inference-движку.
- */
 class JvmAiPackageGateway(
     private val root: Path,
     private val bundled: Map<String, Path> = emptyMap(),
@@ -85,7 +80,7 @@ class JvmAiPackageGateway(
     }
 
     fun modelPath(engineId: String): Path? {
-        bundled[engineId]?.takeIf(Files::isRegularFile)?.let { return it }
+        bundled[engineId]?.takeIf { Files.isRegularFile(it) }?.let { return it }
         val spec = JvmModelManifest.packages[engineId] ?: return null
         val target = modelDir.resolve(spec.fileName)
         val marker = modelDir.resolve("${spec.fileName}.sha256")
@@ -129,7 +124,7 @@ class JvmAiPackageGateway(
                             }
                         }
                     }
-                    val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                    val actual = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
                     require(actual.equals(spec.sha256, true)) { "SHA-256 модели не совпал; файл удалён" }
                     try {
                         Files.move(part, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
@@ -148,7 +143,7 @@ class JvmAiPackageGateway(
     }
 
     override suspend fun remove(engineId: String) = withContext(Dispatchers.IO) {
-        require(engineId !in bundled || bundled[engineId]?.let(Files::isRegularFile) != true) {
+        require(engineId !in bundled || bundled[engineId]?.let { Files.isRegularFile(it) } != true) {
             "Встроенную модель удалить нельзя"
         }
         val spec = JvmModelManifest.packages[engineId] ?: return@withContext
