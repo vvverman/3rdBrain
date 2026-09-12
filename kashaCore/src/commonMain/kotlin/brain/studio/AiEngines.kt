@@ -66,20 +66,24 @@ data class CloudProviderDescriptor(
     val name: String,
     val roles: Set<AiRole>,
     val endpointRequired: Boolean = false,
-    val modelIdRequired: Boolean = true,
     val description: String = "",
 )
 
-/** Метаданные подключения. Секрет/API key здесь намеренно отсутствует. */
+/**
+ * Метаданные подключения. API key здесь намеренно отсутствует.
+ * Один credential провайдера может использовать разные модели для разных ролей.
+ */
 @Serializable
 data class CloudAiConnection(
     val providerId: String,
-    val modelId: String,
+    val modelIds: Map<AiRole, String> = emptyMap(),
     val endpoint: String? = null,
-    val roles: Set<AiRole>,
     val enabled: Boolean = false,
     val privacyConsentVersion: Int = 0,
-)
+) {
+    fun modelFor(role: AiRole): String? = modelIds[role]?.trim()?.takeIf { it.isNotEmpty() }
+    val roles: Set<AiRole> get() = modelIds.filterValues { it.isNotBlank() }.keys
+}
 
 @Serializable
 data class AiPackageState(
@@ -90,10 +94,6 @@ data class AiPackageState(
     val error: String? = null,
 )
 
-/**
- * Платформенный менеджер пакетов моделей. Скачивание/файловая система остаются в shell,
- * а UI и Core работают только с этим контрактом.
- */
 interface AiPackageGateway {
     val available: Boolean
     suspend fun states(): List<AiPackageState>
@@ -130,7 +130,6 @@ object NoopCloudAiGateway : CloudAiGateway {
     override suspend fun test(connection: CloudAiConnection, apiKey: String?): Boolean = false
 }
 
-/** Независимые контракты ролей. */
 interface SpeechToTextEngine {
     val descriptor: AiEngineDescriptor
     suspend fun transcribe(file: String, language: String): String
@@ -147,7 +146,6 @@ interface RoutingEngine {
     suspend fun rank(text: String, projects: List<Project>, language: String): Map<String, Int>
 }
 
-/** Склеивает три независимых движка в старый Intelligence-порт без утечки моделей в Core workflow. */
 class CompositeIntelligence(
     private val speech: SpeechToTextEngine,
     private val text: TextProcessingEngine,
@@ -172,10 +170,6 @@ object AiPrivacy {
     fun dataFor(roles: Set<AiRole>): Set<AiDataKind> = roles.flatMap(::dataFor).toSet()
 }
 
-/**
- * Встроенный каталог — только возможности и рекомендуемые варианты. Пути к файлам,
- * URL загрузки и секреты принадлежат конкретным platform shell/manifest.
- */
 object AiCatalog {
     const val DEFAULT_STT = "local.whisper.small"
     const val DEFAULT_TEXT = "local.qwen3.4b"
@@ -242,8 +236,8 @@ object AiCatalog {
             version = "4B Q4",
             approximateSizeMb = 3000,
             languages = Languages.codes,
-            installable = true,
-            description = "Альтернативная локальная текстовая модель",
+            installable = false,
+            description = "Доступна после принятия условий модели Google",
         ),
         AiEngineDescriptor(
             id = "local.qwen.8b",
@@ -304,13 +298,14 @@ object AiCatalog {
     }
 
     fun connectedCloudChoices(role: AiRole, connections: List<CloudAiConnection>): List<AiEngineDescriptor> = connections
-        .filter { it.enabled && it.privacyConsentVersion >= AiPrivacy.CONSENT_VERSION && role in it.roles }
+        .filter { it.enabled && it.privacyConsentVersion >= AiPrivacy.CONSENT_VERSION && it.modelFor(role) != null }
         .mapNotNull { connection ->
             val provider = provider(connection.providerId) ?: return@mapNotNull null
+            val model = connection.modelFor(role) ?: return@mapNotNull null
             if (role !in provider.roles) return@mapNotNull null
             AiEngineDescriptor(
                 id = cloudEngineId(connection.providerId, role),
-                name = "${provider.name} · ${connection.modelId}",
+                name = "${provider.name} · $model",
                 provider = provider.name,
                 roles = setOf(role),
                 locality = AiLocality.CLOUD,
