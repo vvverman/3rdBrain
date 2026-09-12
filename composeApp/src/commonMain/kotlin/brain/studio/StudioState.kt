@@ -6,17 +6,19 @@ import brain.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.TimeZone
+import kotlin.time.Clock
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 enum class Tab { HOME, PROJECTS, TASKS, SETTINGS }
-enum class DestinationKind { NOTE, TASK }
 
 class StudioState(
     val repository: StudioRepository,
     val recorder: RecorderGateway,
     val audio: AudioGateway,
     val systemLanguage: String = "ru",
+    val reminders: ReminderGateway = NoopReminderGateway,
 ) {
     var snapshot by mutableStateOf(AppSnapshot()); private set
     var preferences by mutableStateOf(Preferences()); private set
@@ -26,11 +28,14 @@ class StudioState(
     var tab by mutableStateOf(Tab.HOME); private set
     var selectedProjectId by mutableStateOf<String?>(null)
     var selectedNoteId by mutableStateOf<String?>(null)
+    var selectedTaskId by mutableStateOf<String?>(null)
     var editingProjectId by mutableStateOf<String?>(null)
     var editingNoteId by mutableStateOf<String?>(null)
     var choosingProject by mutableStateOf(false)
     var targetProjectId by mutableStateOf<String?>(null)
-    var destinationKind by mutableStateOf(DestinationKind.NOTE); private set
+    /** "new" — задача из текущей записи, иначе id существующей задачи. */
+    var taskScheduleTarget by mutableStateOf<String?>(null)
+    var taskArchive by mutableStateOf(false)
     var languagePage by mutableStateOf(false)
 
     var title by mutableStateOf(""); private set
@@ -67,25 +72,26 @@ class StudioState(
     val loadedAudio get() = snapshot.captures.firstOrNull { it.id == loadedAudioId }
     fun tr(key: String) = Copy.text(language, key)
 
-    fun editTitle(value: String) { title = value; dirty = true; editRevision++ }
-    fun editText(value: String) { text = value; dirty = true; editRevision++ }
+    /** Название не редактируется отдельно: оно всегда первая непустая строка текста. */
+    fun editText(value: String) {
+        text = value
+        title = NoteText.title(value)
+        dirty = true
+        editRevision++
+    }
 
     fun navigate(value: Tab) {
         tab = value
         choosingProject = false
         targetProjectId = null
-        destinationKind = DestinationKind.NOTE
+        taskScheduleTarget = null
         editingProjectId = null
         editingNoteId = null
         creatingForCaptureId = null
         selectedProjectId = null
         selectedNoteId = null
+        selectedTaskId = null
         languagePage = false
-    }
-
-    fun chooseDestinationKind(value: DestinationKind) {
-        destinationKind = value
-        targetProjectId = null
     }
 
     fun beginProjectCreation(fromPicker: Boolean = false) {
@@ -122,15 +128,14 @@ class StudioState(
         val c = current
         if (loadedCurrentId != c?.id || !dirty) {
             loadedCurrentId = c?.id
-            title = c?.title.orEmpty()
             text = c?.textToSave.orEmpty()
+            title = NoteText.title(text)
             dirty = false
         }
         if (c != null && c.audioFinalized && loadedAudioId == null && !recording) loadedAudioId = c.id
         if (c != null && previous?.status?.isWorking == true && !c.status.isWorking && c.status == CaptureStatus.READY && autoRouteFor != c.id) {
             autoRouteFor = c.id
             if (preferences.autoRoute) {
-                destinationKind = DestinationKind.NOTE
                 choosingProject = true
                 targetProjectId = null
             }
@@ -141,7 +146,7 @@ class StudioState(
         val c = current ?: return@withLock
         if (!dirty || c.status.isWorking) return@withLock
         val version = editRevision
-        val saved = repository.updateCaptureDraft(c.id, CaptureDraftUpdate(title, text))
+        val saved = repository.updateCaptureDraft(c.id, CaptureDraftUpdate(text = text))
         snapshot = snapshot.copy(captures = snapshot.captures.map { if (it.id == c.id) saved else it })
         if (editRevision == version) dirty = false
     }
@@ -169,6 +174,17 @@ class StudioState(
                 catch (e: CancellationException) { throw e }
                 catch (_: Exception) { error = "actionFailed" }
             }
+            if (tick % 150 == 0 && reminders.available) {
+                try {
+                    val due = repository.claimTaskReminders(
+                        Clock.System.now().toEpochMilliseconds(),
+                        TimeZone.currentSystemDefault().id,
+                    )
+                    due.forEach { reminders.notify(it) }
+                    if (due.isNotEmpty()) refresh()
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { /* напоминание не должно ломать приложение */ }
+            }
         }
     }
 
@@ -195,14 +211,14 @@ class StudioState(
     }
 
     suspend fun reorderTasks(ids: List<String>) = action {
-        check(preferences.taskSort == SortMode.MANUAL)
+        check(preferences.taskSort == SortMode.MANUAL && !taskArchive)
         repository.orderTasks(ids)
         refresh()
     }
 
     fun projects(): List<Project> = UserSort.projects(snapshot.projects, preferences.projectSort)
     fun projectNotes(id: String): List<Note> = UserSort.notes(snapshot.notes.filter { it.projectId == id }, preferences.noteSort)
-    fun tasks(): List<Task> = UserSort.tasks(snapshot.tasks, preferences.taskSort)
+    fun tasks(): List<Task> = SnapshotQueries.tasks(snapshot.tasks, preferences.taskSort, taskArchive)
     fun orderedProjects(): List<Project> = ProjectOrder.sorted(snapshot.projects, current?.relevance.orEmpty())
 
     suspend fun startRecording() = controls {
@@ -265,21 +281,29 @@ class StudioState(
         refresh()
     }
 
-    suspend fun send() = action {
+    /** Отправка в заметки: AI ранжирует проекты, затем открывается только выбор проекта. */
+    suspend fun sendToNotes() = action {
         flush()
         val c = current ?: return@action
         check(c.textToSave.isNotBlank()) { "emptyText" }
         repository.rank(c.id)
         refresh()
-        destinationKind = DestinationKind.NOTE
         choosingProject = true
         targetProjectId = null
+    }
+
+    /** Отправка в задачи не требует проекта: сначала пользователь задаёт срок и повторы. */
+    suspend fun sendToTasks() = action {
+        flush()
+        val c = current ?: return@action
+        check(c.textToSave.isNotBlank()) { "emptyText" }
+        taskScheduleTarget = "new"
     }
 
     suspend fun distribute(projectId: String, noteId: String? = null) = action {
         flush()
         val c = current ?: return@action
-        repository.distribute(c.id, DistributionRequest(projectId, noteId, title))
+        repository.distribute(c.id, DistributionRequest(projectId, noteId))
         dirty = false
         refresh()
         choosingProject = false
@@ -288,16 +312,28 @@ class StudioState(
         selectedProjectId = projectId
     }
 
-    suspend fun distributeTask(projectId: String) = action {
-        flush()
-        val c = current ?: return@action
-        repository.distributeTask(c.id, TaskDistributionRequest(projectId))
-        dirty = false
-        refresh()
-        choosingProject = false
-        targetProjectId = null
-        tab = Tab.TASKS
+    suspend fun saveTaskSchedule(dueAt: Long, repeat: ReminderRepeat) = action {
+        val target = taskScheduleTarget ?: return@action
+        if (target == "new") {
+            flush()
+            val c = current ?: return@action
+            repository.distributeTask(c.id, TaskDistributionRequest(dueAt = dueAt, reminderRepeat = repeat))
+            dirty = false
+            refresh()
+            taskScheduleTarget = null
+            tab = Tab.TASKS
+            taskArchive = false
+            selectedTaskId = null
+        } else {
+            repository.rescheduleTask(target, TaskScheduleUpdate(dueAt, repeat))
+            refresh()
+            taskScheduleTarget = null
+            selectedTaskId = target
+        }
     }
+
+    fun editTaskSchedule(id: String) { taskScheduleTarget = id }
+    fun cancelTaskSchedule() { taskScheduleTarget = null }
 
     suspend fun discard() = action {
         val c = current ?: return@action
@@ -309,6 +345,7 @@ class StudioState(
         refresh()
         confirmDelete = false
         choosingProject = false
+        taskScheduleTarget = null
         tab = Tab.HOME
     }
 
@@ -323,15 +360,31 @@ class StudioState(
     fun beginNoteEdit(id: String) { selectedNoteId = id; editingNoteId = id }
     fun cancelNoteEdit() { editingNoteId = null }
 
-    suspend fun saveNote(id: String, title: String, body: String) = action {
-        repository.updateNote(id, NoteUpdate(title, body))
+    suspend fun saveNote(id: String, body: String) = action {
+        repository.updateNote(id, NoteUpdate(body = body))
         refresh()
         editingNoteId = null
     }
 
+    fun openTask(id: String) { selectedTaskId = id }
+    fun closeTask() { selectedTaskId = null }
+
     suspend fun saveTask(id: String, text: String) = action {
         repository.updateTask(id, TaskUpdate(text))
         refresh()
+    }
+
+    suspend fun completeTask(id: String) = action {
+        repository.completeTask(id)
+        refresh()
+        selectedTaskId = null
+        taskArchive = false
+    }
+
+    suspend fun deleteTask(id: String) = action {
+        repository.deleteTask(id)
+        refresh()
+        selectedTaskId = null
     }
 
     suspend fun pinNote(note: Note) = action { repository.pinNote(note.id, !note.pinned); refresh() }
@@ -359,14 +412,6 @@ class StudioState(
     suspend fun pausePlayback() = controls { audio.pause(); playback = audio.telemetry() }
     suspend fun resumePlayback() = controls { check(!recording); audio.resume(); playback = audio.telemetry() }
     fun stopPlayback() { audio.stop(); playback = AudioTelemetry() }
-
-    suspend fun changePlaybackRate() = controls {
-        val position = playback.position
-        val wasPlaying = playback.phase == "playing"
-        playbackRate = when (playbackRate) { 1.0 -> 1.25; 1.25 -> 1.5; 1.5 -> 2.0; else -> 1.0 }
-        if (wasPlaying) loadedAudioId?.let { startPlayback(it, position) }
-        else if (playback.phase == "paused") { audio.stop(); playback = AudioTelemetry() }
-    }
 
     suspend fun createProject(title: String, instruction: String) = action {
         val originCapture = creatingForCaptureId

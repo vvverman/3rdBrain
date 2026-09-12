@@ -84,7 +84,23 @@ class FileBrainStore(val root: Path, private val runtimeStatus: () -> RuntimeSta
         commit(state.updateTask(id, update, now())); state.tasks.first { it.id == id }
     }
 
+    suspend fun rescheduleTask(id: String, update: TaskScheduleUpdate): Task = mutex.withLock {
+        commit(state.rescheduleTask(id, update, now())); state.tasks.first { it.id == id }
+    }
+
+    suspend fun completeTask(id: String): Task = mutex.withLock {
+        commit(state.completeTask(id, now())); state.tasks.first { it.id == id }
+    }
+
+    suspend fun deleteTask(id: String) = mutex.withLock { commit(state.deleteTask(id)) }
+
     suspend fun orderTasks(ids: List<String>): List<Task> = mutex.withLock { commit(state.orderTasks(ids)); state.tasks }
+
+    suspend fun claimTaskReminders(now: Long, zoneId: String): List<Task> = mutex.withLock {
+        val (next, due) = state.claimDueReminders(now, zoneId)
+        commit(next)
+        due
+    }
 
     suspend fun createCapture(fileName: String, bytes: ByteArray, requestedId: String? = null): Capture = mutex.withLock {
         require(bytes.isNotEmpty() && bytes.size <= 64 * 1024 * 1024) { "Допустим аудиофайл до 64 МБ" }

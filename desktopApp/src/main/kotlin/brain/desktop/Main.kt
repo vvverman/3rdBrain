@@ -31,7 +31,13 @@ fun main(args:Array<String>){
     val smokeOutput=if(smokeAt>=0)Path.of(args[smokeAt+1])else null
     val screen=if(smokeAt>=0&&args.size>smokeAt+2)args[smokeAt+2]else "home"
     if(smokeOutput!=null)runBlocking{services.repository.savePreferences(Preferences(autoRecord=false,language="ru",theme=if(screen.endsWith("dark"))"dark"else"light"))}
-    val state=StudioState(services.repository,services.recorder,services.audio,Locale.getDefault().toLanguageTag())
+    val state=StudioState(
+        services.repository,
+        services.recorder,
+        services.audio,
+        Locale.getDefault().toLanguageTag(),
+        DesktopReminder(),
+    )
     Thread.setDefaultUncaughtExceptionHandler{_,error->runCatching{Files.writeString(root.resolve("last-error.log"),error.stackTraceToString())};error.printStackTrace()}
     try{
         application{

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Не даёт продуктовым экранам обходить Kasha UI, возвращать чужие иконки или придумывать motion."""
+"""Не даёт продуктовым экранам обходить Kasha UI или возвращать чужие icon packs."""
 from pathlib import Path
 import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1] / "composeApp/src/commonMain/kotlin/brain/studio"
-ALLOWED_CONTROLS = {(ROOT / "ui/KashaUi.kt").resolve()}
+ALLOWED_CONTROLS = {(ROOT / "ui/KashaUi.kt").resolve(), (ROOT / "ui/KashaNoteText.kt").resolve()}
 CONTROL_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:Button|IconButton|TextField|OutlinedTextField|Switch|Checkbox|RadioButton|Slider|RangeSlider|BasicTextField)\s*\("
 )
@@ -17,6 +17,8 @@ FORBIDDEN_ICON_PATTERNS = (
     "lucide",
     "SF Symbols",
     "SFSymbol",
+    "PhosphorFillPaths",
+    "KashaPhosphor",
 )
 
 violations = []
@@ -37,33 +39,19 @@ legacy = list(ROOT.rglob("*BrainUi*")) + list(ROOT.rglob("*BrainNavigation*"))
 for path in legacy:
     violations.append(f"{path.relative_to(ROOT.parents[4])}: legacy Brain UI должен быть удалён")
 
-# Motion в Kasha нельзя придумывать. До буквального порта сложной upstream-анимации
-# glyph остаётся статичным. Этот whitelist перечисляет только уже подтверждённые
-# прямые Compose-порты из закреплённых animated-Phosphor источников.
 icons_file = ROOT / "ui/KashaIcons.kt"
 if not icons_file.exists():
-    violations.append("ui/KashaIcons.kt: единый Phosphor-слой отсутствует")
+    violations.append("ui/KashaIcons.kt: единый Kasha Icons слой отсутствует")
 else:
     icon_text = icons_file.read_text(encoding="utf-8")
-    allowed_motion = {"BACK", "NEXT", "UP", "DOWN", "SETTINGS", "EDIT"}
-    declared_motion = set(re.findall(r"Glyph\.([A-Z_]+)\s*->\s*Motion\s*\(", icon_text))
-    unexpected = sorted(declared_motion - allowed_motion)
-    missing = sorted(allowed_motion - declared_motion)
-    if unexpected:
-        violations.append(
-            "ui/KashaIcons.kt: motion без подтверждённого upstream-порта: " + ", ".join(unexpected)
-        )
-    if missing:
-        violations.append(
-            "ui/KashaIcons.kt: исчез подтверждённый upstream motion: " + ", ".join(missing)
-        )
-    if "else -> null" not in icon_text:
-        violations.append(
-            "ui/KashaIcons.kt: неподтверждённые glyphs должны оставаться статичными через `else -> null`"
-        )
+    if "enum class Glyph" not in icon_text or "private fun motion" not in icon_text:
+        violations.append("ui/KashaIcons.kt: собственная геометрия и motion Kasha должны находиться в одном слое")
+
+if (ROOT / "ui/PhosphorFillPaths.kt").exists():
+    violations.append("ui/PhosphorFillPaths.kt: legacy Phosphor должен быть удалён")
 
 if violations:
     print("Kasha UI boundary нарушен:\n" + "\n".join(violations), file=sys.stderr)
     sys.exit(1)
 
-print("Kasha UI + Phosphor boundary: OK")
+print("Kasha UI + Kasha Icons boundary: OK")

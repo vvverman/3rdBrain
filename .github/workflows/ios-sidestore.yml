@@ -1,0 +1,157 @@
+name: Kasha iOS SideStore
+
+on:
+  pull_request:
+    paths:
+      - 'kashaCore/**'
+      - 'composeApp/**'
+      - 'iosApp/**'
+      - 'scripts/make-sidestore-source.py'
+      - '.github/workflows/ios-sidestore.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'kashaCore/**'
+      - 'composeApp/**'
+      - 'iosApp/**'
+      - 'scripts/make-sidestore-source.py'
+      - '.github/workflows/ios-sidestore.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Marketing version'
+        required: true
+        default: '1.2.0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kasha-ios-sidestore-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IOS_VERSION: ${{ github.event.inputs.version || '1.2.0' }}
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+          cache-read-only: false
+
+      - name: Prepare Kasha resources
+        run: |
+          python -m pip install fonttools==4.59.2
+          python scripts/prepare-fonts.py
+          python scripts/check-ui-boundary.py
+          python scripts/check-local-only.py
+
+      - name: Build shared Kasha framework for iPhone
+        run: |
+          set -o pipefail
+          gradle :composeApp:linkReleaseFrameworkIosArm64 2>&1 | tee ios-framework.log
+          test -d composeApp/build/bin/iosArm64/releaseFramework/KashaShared.framework
+
+      - name: Install deterministic project/icon tools
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          command -v rsvg-convert >/dev/null || brew install librsvg
+
+      - name: Generate Kasha app icons
+        run: |
+          set -euo pipefail
+          ICON_DIR="iosApp/Assets.xcassets/AppIcon.appiconset"
+          mkdir -p "$ICON_DIR" build/ios
+          for size in 40 58 60 80 87 120 180 1024; do
+            rsvg-convert -w "$size" -h "$size" iosApp/KashaAppIcon.svg -o "$ICON_DIR/icon-$size.png"
+          done
+          cp "$ICON_DIR/icon-120.png" "$ICON_DIR/icon-120-60.png"
+          cp "$ICON_DIR/icon-1024.png" build/ios/Kasha-icon.png
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec iosApp/project.yml
+
+      - name: Build unsigned iPhone app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project iosApp/Kasha.xcodeproj \
+            -scheme Kasha \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$PWD/build/ios/DerivedData" \
+            MARKETING_VERSION="$IOS_VERSION" \
+            CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build 2>&1 | tee ios-app.log
+
+      - name: Package unsigned IPA for SideStore
+        run: |
+          set -euo pipefail
+          APP="build/ios/DerivedData/Build/Products/Release-iphoneos/Kasha Test.app"
+          test -d "$APP"
+          rm -rf build/ios/Payload
+          mkdir -p build/ios/Payload
+          ditto "$APP" "build/ios/Payload/Kasha Test.app"
+          (cd build/ios && zip -qry Kasha.ipa Payload)
+          test -s build/ios/Kasha.ipa
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | grep -Fx 'ru.vrmn.kasha.test'
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist" | grep -Fx "$IOS_VERSION"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist" | grep -Fx "${GITHUB_RUN_NUMBER}"
+
+      - name: Generate SideStore source
+        run: |
+          python scripts/make-sidestore-source.py \
+            --ipa build/ios/Kasha.ipa \
+            --version "$IOS_VERSION" \
+            --build "${GITHUB_RUN_NUMBER}" \
+            --output build/ios/source.json
+          python -m json.tool build/ios/source.json >/dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kasha-iOS-SideStore-${{ github.run_number }}
+          retention-days: 14
+          path: |
+            build/ios/Kasha.ipa
+            build/ios/source.json
+            build/ios/Kasha-icon.png
+            ios-framework.log
+            ios-app.log
+
+      - name: Publish rolling SideStore release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view sidestore-latest >/dev/null 2>&1; then
+            gh release create sidestore-latest \
+              --target "$GITHUB_SHA" \
+              --title 'Kasha Test · SideStore' \
+              --notes 'Rolling unsigned iOS build for SideStore. SideStore signs it locally with the user Apple Account.'
+          fi
+          gh release upload sidestore-latest \
+            build/ios/Kasha.ipa#Kasha.ipa \
+            build/ios/source.json#source.json \
+            build/ios/Kasha-icon.png#Kasha-icon.png \
+            --clobber
+
+      - name: Print install links
+        if: github.event_name != 'pull_request'
+        run: |
+          echo 'Source: https://github.com/vvverman/Kasha/releases/download/sidestore-latest/source.json'
+          echo 'SideStore source URL: sidestore://source?url=https%3A%2F%2Fgithub.com%2Fvvverman%2FKasha%2Freleases%2Fdownload%2Fsidestore-latest%2Fsource.json'
+          echo 'Direct IPA: https://github.com/vvverman/Kasha/releases/download/sidestore-latest/Kasha.ipa'

@@ -8,6 +8,7 @@ import androidx.compose.ui.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import brain.domain.NoteText
 import brain.model.*
 import kotlinx.coroutines.launch
 
@@ -43,16 +44,19 @@ internal fun ProjectsScreen(s: StudioState) {
     when {
         note != null && s.editingNoteId == note.id -> NoteEditorScreen(s, note)
         note != null -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 22.dp)) {
-            Heading(s.tr("notes"), { s.selectedNoteId = null; s.editingNoteId = null }, s.tr("back")) {
+            Heading(NoteText.title(note.body), { s.selectedNoteId = null; s.editingNoteId = null }, s.tr("back")) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconAction(s.tr(if (note.pinned) "unpin" else "pin"), Glyph.PIN, { scope.launch { s.pinNote(note) } }, filled = note.pinned, modifier = Modifier.size(34.dp))
                     IconAction(s.tr("edit"), Glyph.EDIT, { s.beginNoteEdit(note.id) }, modifier = Modifier.size(34.dp))
                 }
             }
-            KashaEditableNote(
-                title = note.title, onTitleChange = {}, body = note.body, onBodyChange = {},
-                titleLabel = s.tr("untitled"), bodyLabel = s.tr("body"), readOnly = true,
-                onEditRequest = { s.beginNoteEdit(note.id) }, modifier = Modifier.fillMaxWidth(),
+            KashaNoteText(
+                value = note.body,
+                onValueChange = {},
+                placeholder = tx(s, "noteText"),
+                readOnly = true,
+                onEditRequest = { s.beginNoteEdit(note.id) },
+                modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(28.dp))
             Text(s.tr("sources"), style = MaterialTheme.typography.titleSmall)
@@ -110,9 +114,12 @@ internal fun ProjectsScreen(s: StudioState) {
 private fun NoteLine(note: Note, dragging: Boolean = false, onClick: () -> Unit) {
     KashaListCard(onClick = onClick, modifier = Modifier.graphicsLayer { alpha = if (dragging) .72f else 1f }) {
         Column(Modifier.weight(1f)) {
-            Text(note.title, style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(6.dp))
-            Text(note.body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(NoteText.title(note.body), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val preview = NoteText.preview(note.body)
+            if (preview.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(preview, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
         }
         if (note.pinned) { Spacer(Modifier.width(10.dp)); KashaIcon(Glyph.PIN, Modifier.size(16.dp), MaterialTheme.colorScheme.onSurfaceVariant, animated = dragging) }
     }
@@ -121,25 +128,27 @@ private fun NoteLine(note: Note, dragging: Boolean = false, onClick: () -> Unit)
 @Composable
 private fun NoteEditorScreen(s: StudioState, note: Note) {
     val scope = rememberCoroutineScope()
-    var title by remember(note.id) { mutableStateOf(note.title) }
     var body by remember(note.id) { mutableStateOf(note.body) }
     Column(Modifier.fillMaxSize().padding(bottom = 14.dp)) {
-        Heading(s.tr("edit"), s::cancelNoteEdit, s.tr("back"))
+        Heading(NoteText.title(body), s::cancelNoteEdit, s.tr("back"))
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-            KashaEditableNote(
-                title = title, onTitleChange = { title = it }, body = body, onBodyChange = { body = it },
-                titleLabel = s.tr("untitled"), bodyLabel = s.tr("body"), modifier = Modifier.fillMaxWidth(),
+            KashaNoteText(
+                value = body,
+                onValueChange = { body = it },
+                placeholder = tx(s, "noteText"),
+                modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(18.dp))
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             QuietAction(s.tr("cancel"), s::cancelNoteEdit)
             Spacer(Modifier.width(12.dp))
-            Action(s.tr("save"), { scope.launch { s.saveNote(note.id, title, body) } }, primary = true, enabled = !s.busy, modifier = Modifier.weight(1f))
+            Action(s.tr("save"), { scope.launch { s.saveNote(note.id, body) } }, primary = true, enabled = body.isNotBlank() && !s.busy, modifier = Modifier.weight(1f))
         }
     }
 }
 
+/** Выбор проекта теперь относится только к сохранению заметки. */
 @Composable
 internal fun DestinationScreen(s: StudioState) {
     val scope = rememberCoroutineScope()
@@ -149,9 +158,6 @@ internal fun DestinationScreen(s: StudioState) {
             if (project == null) s.choosingProject = false else s.targetProjectId = null
         }, s.tr("back"))
 
-        KashaDestinationSwitch(s.destinationKind, tx(s, "note"), tx(s, "task"), s::chooseDestinationKind)
-        Spacer(Modifier.height(18.dp))
-
         if (project == null) {
             Action(s.tr("createProject"), { s.beginProjectCreation(fromPicker = true) }, glyph = Glyph.PLUS,
                 enabled = !s.busy, modifier = Modifier.fillMaxWidth())
@@ -159,11 +165,6 @@ internal fun DestinationScreen(s: StudioState) {
             KashaReorderableList(
                 items = s.orderedProjects(), key = { it.id }, manual = false, onManualOrder = {}, modifier = Modifier.weight(1f), spacing = 12.dp,
             ) { p, _ -> ProjectLine(p, { s.targetProjectId = p.id }) }
-        } else if (s.destinationKind == DestinationKind.TASK) {
-            Text(tx(s, "taskFromVoiceHint"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(18.dp))
-            Action(tx(s, "saveTask"), { scope.launch { s.distributeTask(project.id) } }, primary = true, glyph = Glyph.TASKS,
-                enabled = !s.busy, modifier = Modifier.fillMaxWidth())
         } else {
             Action(s.tr("newNote"), { scope.launch { s.distribute(project.id) } }, primary = true, glyph = Glyph.PLUS,
                 enabled = !s.busy, modifier = Modifier.fillMaxWidth())

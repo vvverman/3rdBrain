@@ -22,7 +22,11 @@ interface BrainRepository {
     suspend fun pinNote(id: String, pinned: Boolean): Note = error("Закрепление заметок не поддержано этим адаптером")
     suspend fun orderNotes(projectId: String, ids: List<String>)
     suspend fun updateTask(id: String, update: TaskUpdate): Task
+    suspend fun rescheduleTask(id: String, update: TaskScheduleUpdate): Task = error("Изменение срока задачи не поддержано этим адаптером")
+    suspend fun completeTask(id: String): Task = error("Архив задач не поддержан этим адаптером")
+    suspend fun deleteTask(id: String): Unit = error("Удаление задач не поддержано этим адаптером")
     suspend fun orderTasks(ids: List<String>)
+    suspend fun claimTaskReminders(now: Long, zoneId: String): List<Task> = emptyList()
     suspend fun reprocess(id: String): Capture
 }
 

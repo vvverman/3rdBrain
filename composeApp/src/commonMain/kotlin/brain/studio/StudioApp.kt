@@ -29,7 +29,9 @@ fun StudioApp(state: StudioState) {
             }
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(Modifier.widthIn(max = 430.dp).fillMaxWidth().fillMaxHeight().padding(horizontal = 20.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        KashaBrandSlot(Modifier.width(22.dp).height(27.dp), solid = true)
+                        Spacer(Modifier.width(9.dp))
                         Text("Kasha", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, letterSpacing = (-.3).sp)
                         if (state.repository.simulated) Text(state.tr("demoBadge"), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
                     }
@@ -38,6 +40,7 @@ fun StudioApp(state: StudioState) {
                             state.error != null -> Notice(state.tr(state.error!!), state.tr("ok")) { state.error = null }
                             state.confirmDelete -> Confirmation(state.tr("deleteTitle"), state.tr("deleteBody"), state.tr("delete"), state.tr("cancel"), { scope.launch { state.discard() } }, { state.confirmDelete = false })
                             state.confirmListenId != null -> Confirmation(state.tr("confirmListen"), state.tr("preserveRecording"), state.tr("stopAndPlay"), state.tr("cancel"), { scope.launch { state.confirmStopAndListen() } }, { state.confirmListenId = null })
+                            state.taskScheduleTarget != null -> TaskScheduleScreen(state)
                             state.editingProjectId != null -> ProjectEditor(state)
                             state.choosingProject -> DestinationScreen(state)
                             else -> when (state.tab) {
