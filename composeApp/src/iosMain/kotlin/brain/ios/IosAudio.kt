@@ -21,7 +21,6 @@ internal class IosAudio(
 
         val session = AVAudioSession.sharedInstance()
         session.setCategory(AVAudioSessionCategoryPlayback, error = null)
-        session.setActive(true, error = null)
 
         val created = AVAudioPlayer(NSURL.fileURLWithPath(path), error = null)
         created.enableRate = true
@@ -68,6 +67,5 @@ internal class IosAudio(
         player?.stop()
         player = null
         paused = false
-        AVAudioSession.sharedInstance().setActive(false, error = null)
     }
 }
