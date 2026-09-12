@@ -52,6 +52,13 @@ internal object IosPaths {
         check(ok) { "Не удалось сохранить локальные данные Kasha" }
     }
 
+    fun move(from: String, to: String) {
+        if (exists(to)) remove(to)
+        check(files.moveItemAtPath(from, toPath = to, error = null)) {
+            "Не удалось завершить локальный аудиофайл Kasha"
+        }
+    }
+
     fun remove(path: String) {
         if (exists(path)) files.removeItemAtPath(path, error = null)
     }
