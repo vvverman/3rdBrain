@@ -106,7 +106,7 @@ class RoutedStudioIntelligence(
     private fun local(engineId: String, role: AiRole): LocalStudioIntelligence {
         val descriptor = AiCatalog.engine(engineId) ?: error("Неизвестный локальный AI engine: $engineId")
         require(descriptor.supports(role))
-        val model = packages.modelPath(engineId) ?: error("Модель ${descriptor.name} не установлена")
+        val model = packages.modelPath(descriptor.id) ?: error("Модель ${descriptor.name} не установлена")
         val configured = when (role) {
             AiRole.SPEECH_TO_TEXT -> env + ("KASHA_WHISPER_MODEL" to model.toString())
             AiRole.TEXT, AiRole.ROUTING -> env + ("KASHA_LLAMA_MODEL" to model.toString())
