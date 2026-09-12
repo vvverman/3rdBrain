@@ -2,8 +2,7 @@ package brain.ios
 
 import androidx.compose.runtime.remember
 import androidx.compose.ui.window.ComposeUIViewController
-import brain.domain.BrainData
-import brain.domain.NoteText
+import brain.domain.*
 import brain.model.*
 import brain.studio.*
 import kotlinx.serialization.decodeFromString
@@ -71,7 +70,6 @@ private class IosTestRepository : StudioRepository {
     override suspend fun preferences(): Preferences = prefs
 
     override suspend fun savePreferences(value: Preferences) {
-        // Бесплатная iOS test-сборка не должна пытаться стартовать реальный микрофон автоматически.
         prefs = value.validated().copy(autoRecord = false)
         persistPreferences()
     }
