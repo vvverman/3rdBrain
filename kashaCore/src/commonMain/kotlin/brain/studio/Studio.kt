@@ -17,12 +17,14 @@ data class Preferences(
     val projectSort: SortMode = SortMode.ALPHABETICAL,
     val noteSort: SortMode = SortMode.UPDATED,
     val taskSort: SortMode = SortMode.UPDATED,
+    val ai: AiSelection = AiSelection(),
 ) {
     fun validated(): Preferences {
         require(quality in 0..3 && savedSpeed.isFinite() && savedSpeed in 1.0..2.0)
         require(language == "system" || language in Languages.codes)
         require(theme in listOf("system", "light", "dark"))
         require(demoExample in listOf("idea", "password", "cooking"))
+        ai.validated()
         return this
     }
     val bitrate: Int get() = listOf(32, 48, 64, 96)[quality]
@@ -47,7 +49,10 @@ interface StudioRepository : BrainRepository {
     suspend fun createDemo(): Capture
 }
 
-/** Локальный интеллект — тоже порт. Core не знает, Whisper это, Apple/Android API или иной локальный движок. */
+/**
+ * Legacy facade поверх независимых ролей AI. Новые реализации должны собираться через
+ * CompositeIntelligence/SpeechToTextEngine/TextProcessingEngine/RoutingEngine.
+ */
 interface Intelligence {
     val simulated: Boolean
     suspend fun transcribe(file: String, language: String, example: String): String
