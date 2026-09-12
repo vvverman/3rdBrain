@@ -127,6 +127,10 @@ with sync_playwright() as pw:
     def ready():
         return wait(lambda: (c if (c := current()) and c['status'] == 'READY' else None), 'готовая demo-запись')
 
+    def task_manual_order():
+        tasks = [t for t in api('snapshot')['tasks'] if t.get('completedAt') is None]
+        return [t['text'].splitlines()[0] for t in sorted(tasks, key=lambda t: t['manualOrder'])]
+
     def make_note(text, project_title):
         button('Главная'); button('Попробовать без микрофона'); ready()
         field('Текст заметки', text)
@@ -185,19 +189,24 @@ with sync_playwright() as pw:
         text_click('Создано'); wait(lambda: y('Альфа задача') < y('Бета задача'), 'создание задач')
         text_click('Вручную')
         drag('Альфа задача', 'Бета задача')
-        wait(lambda: y('Альфа задача') < y('Бета задача'), 'manual задач')
+        wait(lambda: task_manual_order() == ['Альфа задача', 'Бета задача'], 'manual задач в Core')
+        saved_manual = task_manual_order()
 
-        # Переключение режима проверяем по сохранённой preference: координаты карточек
-        # могут кратко отражать старую Compose semantics-геометрию после recomposition.
+        # После переключения сортировки проверяем именно сохранённую preference и manualOrder.
+        # Compose Web может кратко держать старые accessibility-координаты после recomposition.
         text_click('А-Я')
         wait(lambda: api('preferences')['taskSort'] == 'ALPHABETICAL', 'режим А-Я для задач')
+        assert task_manual_order() == saved_manual
         text_click('Вручную')
         wait(lambda: api('preferences')['taskSort'] == 'MANUAL', 'возврат в manual задач')
-        wait(lambda: y('Альфа задача') < y('Бета задача'), 'manual порядок задач после возврата')
+        assert task_manual_order() == saved_manual
+
         page.reload(wait_until='networkidle')
         visible_item(page.get_by_role('button', name='Главная', exact=True), 'Главная')
         button('Задачи')
-        wait(lambda: y('Альфа задача') < y('Бета задача'), 'manual задач после reload')
+        wait(lambda: api('preferences')['taskSort'] == 'MANUAL', 'manual режим после reload')
+        assert task_manual_order() == saved_manual
+        card('Альфа задача'); card('Бета задача')
 
         snapshot = api('snapshot')
         assert len([t for t in snapshot['tasks'] if t.get('completedAt') is None]) == 2
