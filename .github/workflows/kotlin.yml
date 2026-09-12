@@ -15,10 +15,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Проверка бренда и local-only границы
+      - name: Проверка бренда, local-first и AI privacy границ
         run: |
           python3 scripts/check-brand-boundary.py
           python3 scripts/check-local-only.py
+          python3 scripts/check-ai-boundary.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
