@@ -8,6 +8,10 @@ import brain.studio.*
  */
 object KashaAiCatalog {
     private const val CLOUD_PREFIX = "cloud:"
+    private val legacyIds = mapOf(
+        "local.whisper.small" to AiSelection.DEFAULT_STT,
+        "local.qwen3.4b" to AiSelection.DEFAULT_TEXT,
+    )
 
     val engines: List<AiEngineDescriptor> = listOf(
         AiEngineDescriptor(
@@ -95,7 +99,8 @@ object KashaAiCatalog {
         CloudProviderDescriptor("custom", "Custom endpoint", AiRole.entries.toSet(), endpointRequired = true, description = "Собственный API-адаптер"),
     )
 
-    fun engine(id: String): AiEngineDescriptor? = engines.firstOrNull { it.id == id }
+    fun canonicalEngineId(id: String): String = legacyIds[id] ?: id
+    fun engine(id: String): AiEngineDescriptor? = engines.firstOrNull { it.id == canonicalEngineId(id) }
     fun enginesFor(role: AiRole): List<AiEngineDescriptor> = engines.filter { it.supports(role) }
     fun provider(id: String): CloudProviderDescriptor? = cloudProviders.firstOrNull { it.id == id }
 
