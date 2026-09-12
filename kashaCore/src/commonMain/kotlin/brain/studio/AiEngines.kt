@@ -3,7 +3,7 @@ package brain.studio
 import brain.model.Project
 import kotlinx.serialization.Serializable
 
-/** Роли ИИ в продукте. Core не знает конкретных моделей или провайдеров. */
+/** AI-возможности продукта. Core знает роли, но не конкретные модели и провайдеров. */
 @Serializable
 enum class AiRole { SPEECH_TO_TEXT, TEXT, ROUTING }
 
@@ -14,6 +14,7 @@ enum class AiLocality { LOCAL, CLOUD, NATIVE }
 @Serializable
 enum class AiDataKind { AUDIO, NOTE_TEXT, PROJECT_TITLES, PROJECT_INSTRUCTIONS }
 
+/** Метаданные движка. Конкретный каталог живёт вне kashaCore. */
 @Serializable
 data class AiEngineDescriptor(
     val id: String,
@@ -32,12 +33,22 @@ data class AiEngineDescriptor(
     val isExternal: Boolean get() = locality == AiLocality.CLOUD
 }
 
+/**
+ * Выбор движков хранится в Core как opaque id. Core намеренно не знает,
+ * какой конкретно Whisper/Qwen/провайдер скрывается за id по умолчанию.
+ */
 @Serializable
 data class AiSelection(
-    val speechToText: String = AiCatalog.DEFAULT_STT,
-    val text: String = AiCatalog.DEFAULT_TEXT,
-    val routing: String = AiCatalog.DEFAULT_ROUTING,
+    val speechToText: String = DEFAULT_STT,
+    val text: String = DEFAULT_TEXT,
+    val routing: String = DEFAULT_ROUTING,
 ) {
+    companion object {
+        const val DEFAULT_STT = "local.default.stt"
+        const val DEFAULT_TEXT = "local.default.text"
+        const val DEFAULT_ROUTING = DEFAULT_TEXT
+    }
+
     fun engineId(role: AiRole): String = when (role) {
         AiRole.SPEECH_TO_TEXT -> speechToText
         AiRole.TEXT -> text
@@ -50,11 +61,11 @@ data class AiSelection(
         AiRole.ROUTING -> copy(routing = engineId)
     }
 
+    /** Конкретную role compatibility проверяет внешний каталог; Core проверяет только форму state. */
     fun validated(): AiSelection {
         AiRole.entries.forEach { role ->
-            require(AiCatalog.supportsSelection(engineId(role), role)) {
-                "AI engine ${engineId(role)} does not support $role"
-            }
+            val id = engineId(role).trim()
+            require(id.isNotEmpty() && id.length <= 200) { "Invalid AI engine id for $role" }
         }
         return this
     }
@@ -69,10 +80,7 @@ data class CloudProviderDescriptor(
     val description: String = "",
 )
 
-/**
- * Метаданные подключения. API key здесь намеренно отсутствует.
- * Один credential провайдера может использовать разные модели для разных ролей.
- */
+/** API key здесь намеренно отсутствует. */
 @Serializable
 data class CloudAiConnection(
     val providerId: String,
@@ -103,16 +111,14 @@ interface AiPackageGateway {
 
 object NoopAiPackageGateway : AiPackageGateway {
     override val available = false
-    override suspend fun states(): List<AiPackageState> = AiCatalog.engines
-        .filter { it.locality != AiLocality.CLOUD }
-        .map { AiPackageState(it.id, installed = it.defaultInstalled) }
+    override suspend fun states(): List<AiPackageState> = emptyList()
     override suspend fun install(engineId: String) = error("AI package installation is unavailable on this platform")
     override suspend fun remove(engineId: String) = error("AI package installation is unavailable on this platform")
 }
 
 /**
- * Платформенный шлюз облачных подключений. Реализация ОБЯЗАНА хранить API key
- * в защищённом системном хранилище. Core получает только метаданные подключения.
+ * Platform gateway облачных подключений. Реализация обязана хранить API key
+ * в защищённом системном хранилище. Core получает только безопасные метаданные.
  */
 interface CloudAiGateway {
     val available: Boolean
@@ -168,148 +174,4 @@ object AiPrivacy {
     }
 
     fun dataFor(roles: Set<AiRole>): Set<AiDataKind> = roles.flatMap(::dataFor).toSet()
-}
-
-object AiCatalog {
-    const val DEFAULT_STT = "local.whisper.small"
-    const val DEFAULT_TEXT = "local.qwen3.4b"
-    const val DEFAULT_ROUTING = DEFAULT_TEXT
-    private const val CLOUD_PREFIX = "cloud:"
-
-    val engines: List<AiEngineDescriptor> = listOf(
-        AiEngineDescriptor(
-            id = DEFAULT_STT,
-            name = "Whisper Small",
-            provider = "OpenAI / whisper.cpp",
-            roles = setOf(AiRole.SPEECH_TO_TEXT),
-            locality = AiLocality.LOCAL,
-            version = "small",
-            approximateSizeMb = 500,
-            languages = Languages.codes,
-            defaultInstalled = true,
-            installable = true,
-            description = "Базовая локальная транскрибация",
-        ),
-        AiEngineDescriptor(
-            id = "local.whisper.medium",
-            name = "Whisper Medium",
-            provider = "OpenAI / whisper.cpp",
-            roles = setOf(AiRole.SPEECH_TO_TEXT),
-            locality = AiLocality.LOCAL,
-            version = "medium",
-            approximateSizeMb = 1500,
-            languages = Languages.codes,
-            installable = true,
-            description = "Точнее, но тяжелее",
-        ),
-        AiEngineDescriptor(
-            id = "local.whisper.large-v3",
-            name = "Whisper Large v3",
-            provider = "OpenAI / whisper.cpp",
-            roles = setOf(AiRole.SPEECH_TO_TEXT),
-            locality = AiLocality.LOCAL,
-            version = "large-v3",
-            approximateSizeMb = 3100,
-            languages = Languages.codes,
-            installable = true,
-            description = "Максимальная локальная точность",
-        ),
-        AiEngineDescriptor(
-            id = DEFAULT_TEXT,
-            name = "Qwen 4B",
-            provider = "Qwen / llama.cpp",
-            roles = setOf(AiRole.TEXT, AiRole.ROUTING),
-            locality = AiLocality.LOCAL,
-            version = "4B Q4",
-            approximateSizeMb = 2500,
-            languages = Languages.codes,
-            defaultInstalled = true,
-            installable = true,
-            description = "Базовая локальная модель Kasha",
-        ),
-        AiEngineDescriptor(
-            id = "local.gemma.4b",
-            name = "Gemma 4B",
-            provider = "Google / llama.cpp",
-            roles = setOf(AiRole.TEXT, AiRole.ROUTING),
-            locality = AiLocality.LOCAL,
-            version = "4B Q4",
-            approximateSizeMb = 3000,
-            languages = Languages.codes,
-            installable = false,
-            description = "Доступна после принятия условий модели Google",
-        ),
-        AiEngineDescriptor(
-            id = "local.qwen.8b",
-            name = "Qwen 8B",
-            provider = "Qwen / llama.cpp",
-            roles = setOf(AiRole.TEXT, AiRole.ROUTING),
-            locality = AiLocality.LOCAL,
-            version = "8B Q4",
-            approximateSizeMb = 5000,
-            languages = Languages.codes,
-            installable = true,
-            description = "Более тяжёлая локальная модель",
-        ),
-    )
-
-    val cloudProviders: List<CloudProviderDescriptor> = listOf(
-        CloudProviderDescriptor("openai", "OpenAI", setOf(AiRole.SPEECH_TO_TEXT, AiRole.TEXT, AiRole.ROUTING), description = "OpenAI API"),
-        CloudProviderDescriptor("anthropic", "Anthropic Claude", setOf(AiRole.TEXT, AiRole.ROUTING), description = "Anthropic API"),
-        CloudProviderDescriptor("gemini", "Google Gemini", setOf(AiRole.TEXT, AiRole.ROUTING), description = "Google AI API"),
-        CloudProviderDescriptor("openrouter", "OpenRouter", setOf(AiRole.TEXT, AiRole.ROUTING), description = "Множество моделей через единый API"),
-        CloudProviderDescriptor("openai-compatible", "OpenAI-compatible", setOf(AiRole.TEXT, AiRole.ROUTING), endpointRequired = true, description = "Любой совместимый сервер"),
-        CloudProviderDescriptor("custom", "Custom endpoint", AiRole.entries.toSet(), endpointRequired = true, description = "Собственный API-адаптер"),
-    )
-
-    fun engine(id: String): AiEngineDescriptor? = engines.firstOrNull { it.id == id }
-    fun enginesFor(role: AiRole): List<AiEngineDescriptor> = engines.filter { it.supports(role) }
-    fun provider(id: String): CloudProviderDescriptor? = cloudProviders.firstOrNull { it.id == id }
-
-    fun cloudEngineId(providerId: String, role: AiRole): String = "$CLOUD_PREFIX$providerId:${role.name}"
-
-    fun cloudProviderId(engineId: String): String? = if (engineId.startsWith(CLOUD_PREFIX)) {
-        engineId.removePrefix(CLOUD_PREFIX).substringBefore(':').takeIf { it.isNotBlank() }
-    } else null
-
-    fun cloudRole(engineId: String): AiRole? = if (engineId.startsWith(CLOUD_PREFIX)) {
-        runCatching { AiRole.valueOf(engineId.substringAfterLast(':')) }.getOrNull()
-    } else null
-
-    fun supportsSelection(engineId: String, role: AiRole): Boolean {
-        engine(engineId)?.let { return it.supports(role) }
-        val provider = cloudProviderId(engineId)?.let(::provider) ?: return false
-        return cloudRole(engineId) == role && role in provider.roles
-    }
-
-    fun selectedDescriptor(engineId: String): AiEngineDescriptor? {
-        engine(engineId)?.let { return it }
-        val provider = cloudProviderId(engineId)?.let(::provider) ?: return null
-        val role = cloudRole(engineId) ?: return null
-        if (role !in provider.roles) return null
-        return AiEngineDescriptor(
-            id = engineId,
-            name = provider.name,
-            provider = provider.name,
-            roles = setOf(role),
-            locality = AiLocality.CLOUD,
-            description = provider.description,
-        )
-    }
-
-    fun connectedCloudChoices(role: AiRole, connections: List<CloudAiConnection>): List<AiEngineDescriptor> = connections
-        .filter { it.enabled && it.privacyConsentVersion >= AiPrivacy.CONSENT_VERSION && it.modelFor(role) != null }
-        .mapNotNull { connection ->
-            val provider = provider(connection.providerId) ?: return@mapNotNull null
-            val model = connection.modelFor(role) ?: return@mapNotNull null
-            if (role !in provider.roles) return@mapNotNull null
-            AiEngineDescriptor(
-                id = cloudEngineId(connection.providerId, role),
-                name = "${provider.name} · $model",
-                provider = provider.name,
-                roles = setOf(role),
-                locality = AiLocality.CLOUD,
-                description = provider.description,
-            )
-        }
 }
