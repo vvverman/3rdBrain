@@ -15,10 +15,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Проверка бренда и local-only границы
+      - name: Проверка бренда, local-first и AI privacy границ
         run: |
           python3 scripts/check-brand-boundary.py
           python3 scripts/check-local-only.py
+          python3 scripts/check-ai-boundary.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -34,10 +35,16 @@ jobs:
           python scripts/prepare-fonts.py
           python scripts/check-ui-boundary.py
           bash -n run-web.sh scripts/gradle.sh
-      - name: Kasha Core и общий UI на JVM/Android; metadata, runtime и production WebAssembly
+      - name: Kasha Core, AI catalog и общий UI на JVM/Android; runtime и production WebAssembly
         run: |
           set -o pipefail
-          gradle --continue :kashaCore:assemble :kashaCore:jvmTest :kashaCore:compileKotlinMetadata :composeApp:assemble :composeApp:jvmTest :runtime:test :desktopApp:test :composeApp:wasmJsBrowserDistribution :runtime:installDist 2>&1 | tee kotlin.log
+          gradle --continue \
+            :kashaCore:assemble :kashaCore:jvmTest :kashaCore:compileKotlinMetadata \
+            :aiCatalog:assemble :aiCatalog:jvmTest :aiCatalog:compileKotlinMetadata \
+            :composeApp:assemble :composeApp:jvmTest \
+            :runtime:test :desktopApp:test \
+            :composeApp:wasmJsBrowserDistribution :runtime:installDist \
+            2>&1 | tee kotlin.log
       - name: Весь пользовательский путь в браузере
         run: |
           export KASHA_HOME=$(mktemp -d)
@@ -59,6 +66,7 @@ jobs:
             test-output/studio
             test-output/sorting
             kashaCore/build/test-results
+            aiCatalog/build/test-results
             composeApp/build/test-results
             runtime/build/test-results
             desktopApp/build/test-results

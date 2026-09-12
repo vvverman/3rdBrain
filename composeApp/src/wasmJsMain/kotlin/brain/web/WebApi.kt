@@ -13,13 +13,43 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 /** Web UI talks only to the Kasha process on this device. */
-class WebBrainRepository(private val baseUrl: String) : StudioRepository {
+class WebBrainRepository(private val baseUrl: String) : StudioRepository, AiPlatformServices {
     override var simulated: Boolean = true; private set
     private val client = HttpClient(Js) {
         expectSuccess = true
         defaultRequest { header("X-Kasha-Client", "web") }
         install(HttpTimeout) { requestTimeoutMillis = 30000 }
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
+    }
+
+    override val aiPackages: AiPackageGateway = object : AiPackageGateway {
+        override val available = true
+        override suspend fun states(): List<AiPackageState> = client.get("$baseUrl/api/ai/models").body()
+        override suspend fun install(engineId: String) {
+            client.post("$baseUrl/api/ai/models/$engineId/install")
+        }
+        override suspend fun remove(engineId: String) {
+            client.delete("$baseUrl/api/ai/models/$engineId")
+        }
+    }
+
+    override val cloudAi: CloudAiGateway = object : CloudAiGateway {
+        override val available = true
+        override suspend fun connections(): List<CloudAiConnection> = client.get("$baseUrl/api/ai/cloud").body()
+        override suspend fun save(connection: CloudAiConnection, apiKey: String?) {
+            client.put("$baseUrl/api/ai/cloud/${connection.providerId}") {
+                contentType(ContentType.Application.Json)
+                setBody(CloudAiConnectionRequest(connection, apiKey))
+            }
+        }
+        override suspend fun remove(providerId: String) {
+            client.delete("$baseUrl/api/ai/cloud/$providerId")
+        }
+        override suspend fun test(connection: CloudAiConnection, apiKey: String?): Boolean =
+            client.post("$baseUrl/api/ai/cloud/${connection.providerId}/test") {
+                contentType(ContentType.Application.Json)
+                setBody(CloudAiConnectionRequest(connection, apiKey))
+            }.body<CloudAiConnectionTestResult>().ok
     }
 
     override suspend fun snapshot(): AppSnapshot = client.get("$baseUrl/api/snapshot").body<AppSnapshot>().also { simulated = it.runtime.simulated }

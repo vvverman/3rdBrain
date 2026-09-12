@@ -27,13 +27,22 @@ internal fun SettingsScreen(s: StudioState) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 20.dp)) {
         Heading(s.tr("settings"))
 
+        val externalAi = AiRole.entries.any { role -> AiCatalog.selectedDescriptor(p.ai.engineId(role))?.isExternal == true }
         KashaPanel(Modifier.fillMaxWidth(), padding = 16.dp) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 KashaIcon(Glyph.CHECK, Modifier.size(21.dp), c.onSurfaceVariant)
                 Spacer(Modifier.width(12.dp))
-                Text(KashaCopy.text(s.language, "localOnly") ?: "", style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceVariant)
+                Text(
+                    if (externalAi) KashaCopy.text(s.language, "aiPrivacyWarning") ?: ""
+                    else KashaCopy.text(s.language, "localOnly") ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = c.onSurfaceVariant,
+                )
             }
         }
+
+        Spacer(Modifier.height(24.dp))
+        AiSettingsSection(s)
 
         Spacer(Modifier.height(24.dp))
         Text(s.tr("recordSettings"), style = MaterialTheme.typography.titleSmall); Spacer(Modifier.height(18.dp))

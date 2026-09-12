@@ -1,6 +1,7 @@
 package brain.runtime
 
 import brain.model.*
+import brain.runtime.ai.*
 import brain.studio.*
 import io.ktor.http.*
 import io.ktor.http.content.*
@@ -19,6 +20,7 @@ import io.ktor.utils.io.readRemaining
 import kotlinx.io.readByteArray
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
+import java.nio.file.Files
 import java.nio.file.Path
 
 private class LocalAccessDenied : IllegalArgumentException("Local access only")
@@ -45,15 +47,23 @@ fun main() {
     val root = Path.of(System.getenv("KASHA_HOME") ?: Path.of(System.getProperty("user.home"), ".kasha-studio-test").toString())
     val simulated = System.getenv("KASHA_DEMO_AI") == "1"
     val env = System.getenv(); val ffmpeg = env["KASHA_FFMPEG"] ?: "ffmpeg"
+    val prefs = PreferenceStore(root)
     val store = FileBrainStore(root, runtimeStatus = { RuntimeStatus(localOnly = true, simulated = simulated) }, singleCurrent = true)
     val legacy = LocalProcessing(store, env)
-    val prefs = PreferenceStore(root)
-    val intelligence: Intelligence = if (simulated) DemoIntelligence() else LocalStudioIntelligence(env, root)
+    val bundledModels = buildMap<String, Path> {
+        env["KASHA_WHISPER_MODEL"]?.let { Path.of(it) }?.takeIf(Files::isRegularFile)?.let { put(AiCatalog.DEFAULT_STT, it) }
+        env["KASHA_LLAMA_MODEL"]?.let { Path.of(it) }?.takeIf(Files::isRegularFile)?.let { put(AiCatalog.DEFAULT_TEXT, it) }
+    }
+    val packages = JvmAiPackageGateway(root, bundledModels)
+    val cloud = JvmCloudAiGateway(root)
+    val intelligence: Intelligence = if (simulated) DemoIntelligence() else RoutedStudioIntelligence(prefs, env, root, packages, cloud)
     val processor = StudioProcessor(store, prefs, intelligence, ffmpeg)
+    val baseRepository = StudioDiskRepository(store, processor, prefs, CoroutineScope(SupervisorJob() + Dispatchers.IO))
+    val studio: StudioRepository = AiStudioRepository(baseRepository, packages, cloud)
     val webRoot = Path.of(System.getenv("KASHA_WEB_ROOT") ?: "composeApp/build/dist/wasmJs/productionExecutable")
-    println("Kasha: http://127.0.0.1:8787 ; simulated AI=$simulated ; local-only=true")
+    println("Kasha: http://127.0.0.1:8787 ; simulated AI=$simulated ; local-first=true")
     embeddedServer(Netty, host = "127.0.0.1", port = 8787) {
-        brainModule(store, legacy, webRoot, StudioDiskRepository(store, processor, prefs, this))
+        brainModule(store, legacy, webRoot, studio)
     }.start(wait = true)
 }
 
@@ -80,6 +90,7 @@ fun Application.brainModule(store: FileBrainStore, processing: LocalProcessing, 
         get("/api/preferences") { call.respond(studio?.preferences() ?: Preferences()) }
         put("/api/preferences") { check(studio != null); studio.savePreferences(call.receive<Preferences>()); call.respond(studio.preferences()) }
         post("/api/demo") { check(studio != null); call.respond(HttpStatusCode.Created, studio.createDemo()) }
+        aiRoutes(studio)
 
         post("/api/projects") { call.respond(store.createProject(call.receive<ProjectDraft>())) }
         put("/api/projects/{id}") { call.respond(store.updateProject(call.parameters["id"]!!, call.receive<ProjectUpdate>())) }

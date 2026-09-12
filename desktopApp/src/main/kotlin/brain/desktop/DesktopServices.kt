@@ -3,6 +3,7 @@ package brain.desktop
 import brain.domain.*
 import brain.model.*
 import brain.runtime.*
+import brain.runtime.ai.*
 import brain.studio.*
 import kotlinx.coroutines.*
 import java.nio.channels.FileChannel
@@ -31,9 +32,16 @@ class DesktopServices(val root: Path, val resources: Path, cpuOnly: Boolean = fa
             val runner = DesktopInferenceRunner(cpuOnly)
             processing = LocalProcessing(store, env, runner)
             val prefs = PreferenceStore(root)
-            val intelligence: Intelligence = if(simulated) DemoIntelligence() else LocalStudioIntelligence(env,root,runner)
+            val bundledModels = if (simulated) emptyMap() else mapOf(
+                AiCatalog.DEFAULT_STT to Path.of(env.getValue("KASHA_WHISPER_MODEL")),
+                AiCatalog.DEFAULT_TEXT to Path.of(env.getValue("KASHA_LLAMA_MODEL")),
+            )
+            val packages = JvmAiPackageGateway(root, bundledModels)
+            val cloud = JvmCloudAiGateway(root)
+            val intelligence: Intelligence = if(simulated) DemoIntelligence() else RoutedStudioIntelligence(prefs,env,root,packages,cloud,runner)
             studioProcessor = StudioProcessor(store,prefs,intelligence,env.getValue("KASHA_FFMPEG"),runner)
-            repository = StudioDiskRepository(store,studioProcessor,prefs,scope)
+            val baseRepository = StudioDiskRepository(store,studioProcessor,prefs,scope)
+            repository = AiStudioRepository(baseRepository, packages, cloud)
             recorder = DesktopRecorder(root,store){studioProcessor.enqueue(it,scope)}
             audio = DesktopAudio(store,env.getValue("KASHA_FFMPEG"),root,scope)
         } catch(e: Exception) { lock.release();lockChannel.close();scope.cancel();throw e }
