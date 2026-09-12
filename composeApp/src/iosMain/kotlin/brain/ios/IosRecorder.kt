@@ -49,7 +49,6 @@ internal class IosRecorder(
 
         val session = AVAudioSession.sharedInstance()
         session.setCategory(AVAudioSessionCategoryPlayAndRecord, error = null)
-        session.setActive(true, error = null)
 
         val path = IosPaths.child(IosPaths.pending, "${NSUUID().UUIDString.lowercase()}.m4a")
         val settings = mapOf<Any?, Any>(
@@ -88,7 +87,6 @@ internal class IosRecorder(
         recorder = null
         currentPath = null
         currentPhase = "idle"
-        AVAudioSession.sharedInstance().setActive(false, error = null)
 
         val finalPath = IosPaths.child(IosPaths.audio, source.substringAfterLast('/'))
         IosPaths.move(source, finalPath)
