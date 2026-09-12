@@ -187,8 +187,13 @@ with sync_playwright() as pw:
         drag('Альфа задача', 'Бета задача')
         wait(lambda: y('Альфа задача') < y('Бета задача'), 'manual задач')
 
-        text_click('А-Я'); wait(lambda: y('Альфа задача') < y('Бета задача'), 'выход из manual')
-        text_click('Вручную'); wait(lambda: y('Альфа задача') < y('Бета задача'), 'возврат manual')
+        # Переключение режима проверяем по сохранённой preference: координаты карточек
+        # могут кратко отражать старую Compose semantics-геометрию после recomposition.
+        text_click('А-Я')
+        wait(lambda: api('preferences')['taskSort'] == 'ALPHABETICAL', 'режим А-Я для задач')
+        text_click('Вручную')
+        wait(lambda: api('preferences')['taskSort'] == 'MANUAL', 'возврат в manual задач')
+        wait(lambda: y('Альфа задача') < y('Бета задача'), 'manual порядок задач после возврата')
         page.reload(wait_until='networkidle')
         visible_item(page.get_by_role('button', name='Главная', exact=True), 'Главная')
         button('Задачи')
