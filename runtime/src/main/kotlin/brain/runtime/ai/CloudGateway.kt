@@ -100,4 +100,9 @@ class AiStudioRepository(
     private val delegate: StudioRepository,
     override val aiPackages: AiPackageGateway,
     override val cloudAi: CloudAiGateway,
-) : StudioRepository by delegate, AiPlatformServices
+) : StudioRepository by delegate, AiPlatformServices {
+    override suspend fun savePreferences(value: Preferences) {
+        AiCatalog.validateSelection(value.ai)
+        delegate.savePreferences(value)
+    }
+}
