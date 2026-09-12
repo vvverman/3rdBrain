@@ -18,6 +18,7 @@ jobs:
         run: |
           python3 scripts/check-brand-boundary.py
           python3 scripts/check-local-only.py
+          python3 scripts/check-ai-boundary.py
           python3 scripts/check-ui-boundary.py
       - uses: actions/setup-java@v5
         with:
@@ -39,13 +40,16 @@ jobs:
           .build-python/bin/pip install pillow==11.3.0 piper-tts==1.4.2 fonttools==4.59.2
           .build-python/bin/python scripts/prepare-fonts.py
           .build-python/bin/python desktopApp/packaging/make-icon.py
-      - name: Kasha Core iOS/JVM и все Kotlin-тесты
+      - name: Kasha Core, AI catalog, iOS/JVM и все Kotlin-тесты
         run: |
           set -o pipefail
           gradle -Pkotlin.compiler.execution.strategy=in-process \
             :kashaCore:jvmTest \
             :kashaCore:compileKotlinIosArm64 \
             :kashaCore:compileKotlinIosSimulatorArm64 \
+            :aiCatalog:jvmTest \
+            :aiCatalog:compileKotlinIosArm64 \
+            :aiCatalog:compileKotlinIosSimulatorArm64 \
             :composeApp:jvmTest :runtime:test :desktopApp:test :desktopApp:jar 2>&1 | tee macos-compile.log
       - uses: actions/cache/restore@v4
         id: native-cache
@@ -90,6 +94,7 @@ jobs:
             macos-output/self-test/*.log
             desktopApp/build/compose/logs
             kashaCore/build/test-results
+            aiCatalog/build/test-results
             composeApp/build/test-results
             runtime/build/test-results
             desktopApp/build/test-results
