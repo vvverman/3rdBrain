@@ -9,6 +9,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.Foundation.NSLocale
 import platform.Foundation.NSURL
 import platform.Speech.SFSpeechRecognizer
+import platform.Speech.SFSpeechRecognizerAuthorizationStatus
 import platform.Speech.SFSpeechURLRecognitionRequest
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -102,18 +103,12 @@ internal class IosOnDeviceIntelligence : Intelligence {
     }
 
     private suspend fun checkSpeechPermission() {
-        if (SFSpeechRecognizer.authorizationStatus() == SPEECH_AUTHORIZED) return
+        if (SFSpeechRecognizer.authorizationStatus() == SFSpeechRecognizerAuthorizationStatus.Authorized) return
         val granted = suspendCancellableCoroutine { continuation ->
             SFSpeechRecognizer.requestAuthorization { status ->
-                if (continuation.isActive) continuation.resume(status == SPEECH_AUTHORIZED)
+                if (continuation.isActive) continuation.resume(status == SFSpeechRecognizerAuthorizationStatus.Authorized)
             }
         }
         check(granted) { "speechPermissionDenied" }
-    }
-
-    private companion object {
-        // SFSpeechRecognizerAuthorizationStatusAuthorized == 3. Xcode 26/Kotlin Native
-        // imports this NS_ENUM value as its NSInteger representation on this target.
-        const val SPEECH_AUTHORIZED: Long = 3L
     }
 }
