@@ -5,7 +5,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SCOPES = [ROOT / 'kashaCore', ROOT / 'composeApp', ROOT / 'runtime', ROOT / 'desktopApp']
+SCOPES = [ROOT / 'kashaCore', ROOT / 'aiCatalog', ROOT / 'composeApp', ROOT / 'runtime', ROOT / 'desktopApp']
 SKIP = {'build', 'test', 'commonTest', 'node_modules'}
 
 # Эти сервисы нарушают продуктовую границу независимо от AI-настроек.
