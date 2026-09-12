@@ -51,8 +51,8 @@ fun main() {
     val store = FileBrainStore(root, runtimeStatus = { RuntimeStatus(localOnly = true, simulated = simulated) }, singleCurrent = true)
     val legacy = LocalProcessing(store, env)
     val bundledModels = buildMap<String, Path> {
-        env["KASHA_WHISPER_MODEL"]?.let(::Path.of)?.takeIf(Files::isRegularFile)?.let { put(AiCatalog.DEFAULT_STT, it) }
-        env["KASHA_LLAMA_MODEL"]?.let(::Path.of)?.takeIf(Files::isRegularFile)?.let { put(AiCatalog.DEFAULT_TEXT, it) }
+        env["KASHA_WHISPER_MODEL"]?.let { Path.of(it) }?.takeIf(Files::isRegularFile)?.let { put(AiCatalog.DEFAULT_STT, it) }
+        env["KASHA_LLAMA_MODEL"]?.let { Path.of(it) }?.takeIf(Files::isRegularFile)?.let { put(AiCatalog.DEFAULT_TEXT, it) }
     }
     val packages = JvmAiPackageGateway(root, bundledModels)
     val cloud = JvmCloudAiGateway(root)
