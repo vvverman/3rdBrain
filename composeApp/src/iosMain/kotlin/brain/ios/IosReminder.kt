@@ -11,26 +11,20 @@ internal class IosReminder : ReminderGateway {
     private val center get() = UNUserNotificationCenter.currentNotificationCenter()
     override val available: Boolean = true
 
-    /** Уведомление уже ставится системой заранее через sync, повторно показывать его не нужно. */
+    /** Уведомления заранее ставятся системой через sync. */
     override suspend fun notify(task: Task) = Unit
 
     override suspend fun sync(tasks: List<Task>) {
-        val active = tasks.filterNot { it.completed }
-        val activeIds = active.map { identifier(it.id) }.toSet()
-        center.getPendingNotificationRequestsWithCompletionHandler { requests ->
-            val obsolete = requests.orEmpty()
-                .map { it.identifier }
-                .filter { it.startsWith(PREFIX) && it !in activeIds }
-            if (obsolete.isNotEmpty()) center.removePendingNotificationRequestsWithIdentifiers(obsolete)
-        }
-        active.forEach(::schedule)
+        // Kasha использует локальные notifications только для задач, поэтому полная
+        // пересборка pending-очереди проще и надёжнее частичного diff через ObjC NSArray.
+        center.removeAllPendingNotificationRequests()
+        tasks.filterNot { it.completed }.forEach(::schedule)
     }
 
     private fun schedule(task: Task) {
         requestPermission { granted ->
             if (!granted) return@requestPermission
             val id = identifier(task.id)
-            center.removePendingNotificationRequestsWithIdentifiers(listOf(id))
             val content = UNMutableNotificationContent().apply {
                 setTitle("Kasha · Задача")
                 setBody(task.text.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(180).orEmpty())
