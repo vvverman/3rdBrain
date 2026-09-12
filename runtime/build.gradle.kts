@@ -9,6 +9,7 @@ application { mainClass.set("brain.runtime.MainKt") }
 
 dependencies {
     implementation(project(":kashaCore"))
+    implementation(project(":aiCatalog"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.ktor.server.core)
