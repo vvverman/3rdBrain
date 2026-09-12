@@ -52,8 +52,9 @@ data class AiSelection(
 
     fun validated(): AiSelection {
         AiRole.entries.forEach { role ->
-            val engine = AiCatalog.engine(engineId(role)) ?: error("Unknown AI engine: ${engineId(role)}")
-            require(engine.supports(role)) { "AI engine ${engine.id} does not support $role" }
+            require(AiCatalog.supportsSelection(engineId(role), role)) {
+                "AI engine ${engineId(role)} does not support $role"
+            }
         }
         return this
     }
@@ -179,6 +180,7 @@ object AiCatalog {
     const val DEFAULT_STT = "local.whisper.small"
     const val DEFAULT_TEXT = "local.qwen3.4b"
     const val DEFAULT_ROUTING = DEFAULT_TEXT
+    private const val CLOUD_PREFIX = "cloud:"
 
     val engines: List<AiEngineDescriptor> = listOf(
         AiEngineDescriptor(
@@ -269,4 +271,50 @@ object AiCatalog {
     fun engine(id: String): AiEngineDescriptor? = engines.firstOrNull { it.id == id }
     fun enginesFor(role: AiRole): List<AiEngineDescriptor> = engines.filter { it.supports(role) }
     fun provider(id: String): CloudProviderDescriptor? = cloudProviders.firstOrNull { it.id == id }
+
+    fun cloudEngineId(providerId: String, role: AiRole): String = "$CLOUD_PREFIX$providerId:${role.name}"
+
+    fun cloudProviderId(engineId: String): String? = if (engineId.startsWith(CLOUD_PREFIX)) {
+        engineId.removePrefix(CLOUD_PREFIX).substringBefore(':').takeIf { it.isNotBlank() }
+    } else null
+
+    fun cloudRole(engineId: String): AiRole? = if (engineId.startsWith(CLOUD_PREFIX)) {
+        runCatching { AiRole.valueOf(engineId.substringAfterLast(':')) }.getOrNull()
+    } else null
+
+    fun supportsSelection(engineId: String, role: AiRole): Boolean {
+        engine(engineId)?.let { return it.supports(role) }
+        val provider = cloudProviderId(engineId)?.let(::provider) ?: return false
+        return cloudRole(engineId) == role && role in provider.roles
+    }
+
+    fun selectedDescriptor(engineId: String): AiEngineDescriptor? {
+        engine(engineId)?.let { return it }
+        val provider = cloudProviderId(engineId)?.let(::provider) ?: return null
+        val role = cloudRole(engineId) ?: return null
+        if (role !in provider.roles) return null
+        return AiEngineDescriptor(
+            id = engineId,
+            name = provider.name,
+            provider = provider.name,
+            roles = setOf(role),
+            locality = AiLocality.CLOUD,
+            description = provider.description,
+        )
+    }
+
+    fun connectedCloudChoices(role: AiRole, connections: List<CloudAiConnection>): List<AiEngineDescriptor> = connections
+        .filter { it.enabled && it.privacyConsentVersion >= AiPrivacy.CONSENT_VERSION && role in it.roles }
+        .mapNotNull { connection ->
+            val provider = provider(connection.providerId) ?: return@mapNotNull null
+            if (role !in provider.roles) return@mapNotNull null
+            AiEngineDescriptor(
+                id = cloudEngineId(connection.providerId, role),
+                name = "${provider.name} · ${connection.modelId}",
+                provider = provider.name,
+                roles = setOf(role),
+                locality = AiLocality.CLOUD,
+                description = provider.description,
+            )
+        }
 }
